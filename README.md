@@ -9,3 +9,4 @@ TODO:
 - Bacon
 - Website
 - More commands
+- Better logic for SQL queries

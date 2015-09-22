@@ -86,7 +86,7 @@ func (bot *Bot) writeLevelDB(channel string, userName string, userMessage string
                 }
 		fmt.Printf("Added level %s by %s for %d %s. Rows affected: %d Last ID: %d\n", levelId, userName, chanId, channel, rowsAff, lastId)
         case checkDuplicate != nil:
-                log.Fatalf("Checking duplicate level failed, error: %\n", checkDuplicate.Error())
+                log.Fatalf("Checking duplicate level failed, error: %s\n", checkDuplicate.Error())
         default:
                 fmt.Printf("Duplicate level, not adding...\n")
         }

@@ -20,8 +20,10 @@ type Bot struct {
 	mods		map[string]bool
 	lastmsg		int64
 	maxMsgTime	int64
-        creator		string
-        level		string
+	//Save last random level
+	levelId		map[int]int
+        userName	map[int]string
+        level		map[int]string
 	//database
         user            string
         pass            string
@@ -39,6 +41,9 @@ func NewBot() *Bot {
 		mods:           make(map[string]bool),
 		lastmsg:	0,
 		maxMsgTime:	5,
+		levelId:	make(map[int]int),
+		userName:	make(map[int]string),
+		level:		make(map[int]string),
 		user:		"mario",
 		pass:		"salakala",
 		host:		"unix(/var/run/mysqld/mysqld.sock)",
@@ -93,8 +98,9 @@ func main() {
 	go ircbot.ConsoleInput()
 	ircbot.Connect()
 
-	ircbot.channel[0] = "#retku"
-	ircbot.channel[1] = "#firnwath"
+	ircbot.channel[1] = "#retku"
+	ircbot.channel[2] = "#firnwath"
+	ircbot.channel[3] = "#herramustikka"
 
 	pass1, err := ioutil.ReadFile("twitch_pass.txt")
 	pass := strings.Replace(string(pass1), "\n", "", 0)
@@ -134,14 +140,16 @@ func main() {
                         usermessage := strings.Replace(userdata[1], channel[0]+" :", "", 1)
                         fmt.Printf(channel[0] +" "+ username[1] + ": " + usermessage + "\n")
 			go ircbot.CmdInterpreter(channel[0], username[1], usermessage)
+		/*
 		} else if strings.Contains(line, ".tmi.twitch.tv JOIN ") {
 			userjoindata := strings.Split(line, ".tmi.twitch.tv JOIN ")
 			userjoined := strings.Split(userjoindata[0], "@")
-			fmt.Printf(userjoined[1] + " has joined!\n")
+			//fmt.Printf(userjoined[1] + " has joined!\n")
 		} else if strings.Contains(line, ".tmi.twitch.tv PART ") {
 			userjoindata := strings.Split(line, ".tmi.twitch.tv PART ")
 			userjoined := strings.Split(userjoindata[0], "@")
-			fmt.Printf(userjoined[1] + " has left!\n")
+			//fmt.Printf(userjoined[1] + " has left!\n")
+		*/
 		} else if strings.Contains(line, ":jtv MODE  +o ") {
 			usermod := strings.Split(line, ":jtv MODE  +o ")
 			ircbot.mods[usermod[1]] = true

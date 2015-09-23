@@ -27,6 +27,10 @@ func (bot *Bot) CmdInterpreter(channel string, username string, usermessage stri
 		} else {
 			bot.Message(channel,bot.getLevel(false,channel))
 		}
+	} else if strings.HasPrefix(usermessage, "!reroll") {
+		if bot.isStreamer(username,channel) {
+			bot.Message(channel,bot.doReroll(channel))
+		}
 	} else if strings.HasPrefix(usermessage, "!stats") {
 		bot.Message(channel,bot.getStats(channel))
 	}

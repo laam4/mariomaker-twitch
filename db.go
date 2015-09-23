@@ -95,7 +95,6 @@ func (bot *Bot) writeLevelDB(channel string, userName string, userMessage string
 func (bot *Bot) getLevel(streamer bool, channel string) string {
 	
 	chanId := bot.getChanId(channel)
-	
 	//Choose new random level if streamer, else get last random level
 	if streamer {
 		var levelId int
@@ -131,17 +130,44 @@ func (bot *Bot) getLevel(streamer bool, channel string) string {
 		}
                 fmt.Printf("Updated played=true for level %d , rows affected %d\n", bot.levelId[chanId], rowsAff)
 		chanName := strings.Replace(channel, "#", "@", 1)
-		result := fmt.Sprintf("%s: #%d %s by %s | [%s] %s", chanName, bot.levelId[chanId], bot.level[chanId], bot.userName[chanId], added, message)
+		result := fmt.Sprintf("%s: %s by %s | #%d[%s] %s", chanName, bot.level[chanId], bot.userName[chanId], bot.levelId[chanId], added, message)
 		return result
 	} else {
 		if bot.level[chanId] == "" {
 			return "Level not selected :<"
 		} else {
-		result := fmt.Sprintf("Last played level: %s by %s", bot.level[chanId], bot.userName[chanId])
+		result := fmt.Sprintf("Last played level #%d: %s by %s", bot.levelId[chanId], bot.level[chanId], bot.userName[chanId])
 		return result
 		}
 	}
 	return "No idea what happened!?"
+}
+
+func (bot *Bot) doReroll(channel string) string {
+
+        chanId := bot.getChanId(channel)
+        if bot.level[chanId] == "" {
+		return "Cannot reroll without level Kappa"
+        } else {
+		//Save old levelId and get new level before setting Played back to false
+		oldLevelId := bot.levelId[chanId]
+		result := bot.getLevel(true,channel)
+		rerollPlayed, dberr := db.Prepare("UPDATE Levels SET Played=0,Passed='0000-00-00 00:00:00' WHERE LevelID=?;")
+                if dberr != nil {
+                        log.Fatalf("Cannot revert rerollPlayed on %s: %s\n", channel, dberr.Error())
+                }
+                execrPlayed, dberr := rerollPlayed.Exec(oldLevelId)
+                if dberr != nil {
+                        log.Fatalf("Cannot exec rerollPlayed on %s: %s\n", channel, dberr.Error())
+                }
+                rowsAff, dberr := execrPlayed.RowsAffected()
+                if dberr != nil {
+                        log.Fatalf("No rows changed on %s: %s\n", channel, dberr.Error())
+                }
+                fmt.Printf("Updated played=false for level %d , rows affected %d\n", oldLevelId, rowsAff)
+		return result
+        }
+	return "Kappa"
 }
 
 func (bot *Bot) getStats(channel string) string {

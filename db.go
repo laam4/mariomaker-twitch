@@ -29,8 +29,8 @@ func (bot *Bot) InitDB() {
         }
 
         var Streamer int
-        for i := range bot.channel {
-                chanName := strings.Replace(bot.channel[i], "#", "", 1)
+        for k, i := range bot.channel {
+                chanName := strings.Replace(k, "#", "", 1)
                 checkStream := db.QueryRow("SELECT StreamID FROM Streamers WHERE Name=?", chanName).Scan(&Streamer)
                 switch {
                 case checkStream == sql.ErrNoRows:
@@ -48,18 +48,18 @@ func (bot *Bot) InitDB() {
                         if dberr != nil {
                                 log.Fatalf("Last id error with streamer %s, error: %s\n", chanName, dberr.Error())
                         }
-                        fmt.Printf("New streamId for %s is %d, ID = %d\n", bot.channel[i], i, lastId)
+                        fmt.Printf("New streamId for %s is %d, ID = %d\n", k, i, lastId)
                 case checkStream != nil:
                         log.Fatalf("Database query to Streamers table error: %s\n", checkStream.Error())
                 default:
-                        fmt.Printf("StreamerId for %s is %d\n", bot.channel[i], Streamer)
+                        fmt.Printf("StreamerId for %s is %d\n", k, Streamer)
                 }
         }
 }
 
 func (bot *Bot) writeLevelDB(channel string, userName string, userMessage string, levelId string) {
 	
-	chanId := bot.getChanId(channel)
+	chanId := bot.channel[channel]
 	//Check for duplicate LevelId for this channel
         var duplicateLevel string
         checkDuplicate := db.QueryRow("SELECT Level FROM Levels WHERE Level=? AND StreamID=?", levelId,chanId).Scan(&duplicateLevel)
@@ -94,7 +94,7 @@ func (bot *Bot) writeLevelDB(channel string, userName string, userMessage string
 
 func (bot *Bot) getLevel(streamer bool, channel string) string {
 	
-	chanId := bot.getChanId(channel)
+	chanId := bot.channel[channel]
 	//Choose new random level if streamer, else get last random level
 	if streamer {
 		var levelId int
@@ -109,7 +109,7 @@ func (bot *Bot) getLevel(streamer bool, channel string) string {
         	case getrLevel != nil:
                 	log.Fatalf("Cannot get random level: error\n", getrLevel.Error())
         	default:
-                	fmt.Printf("New random level chosen #%d %s by %s\n", bot.levelId[chanId], bot.level[chanId], bot.userName[chanId])
+                	fmt.Printf("New random level chosen #%d %s by %s\n", levelId, level, userName)
 			bot.levelId[chanId] = levelId
 			bot.userName[chanId] = userName
 			bot.level[chanId] = level
@@ -145,7 +145,7 @@ func (bot *Bot) getLevel(streamer bool, channel string) string {
 
 func (bot *Bot) doReroll(channel string) string {
 
-        chanId := bot.getChanId(channel)
+        chanId := bot.channel[channel]
         if bot.level[chanId] == "" {
 		return "Cannot reroll without level Kappa"
         } else {
@@ -172,7 +172,7 @@ func (bot *Bot) doReroll(channel string) string {
 
 func (bot *Bot) getStats(channel string) string {
 	
-	chanId := bot.getChanId(channel)
+	chanId := bot.channel[channel]
 
 	var allCount int
 	var playCount int
@@ -187,17 +187,3 @@ func (bot *Bot) getStats(channel string) string {
 	result := fmt.Sprintf("Streamer has played %d levels from %d", playCount, allCount)
         return result
 }
-
-func (bot *Bot) getChanId(channel string) int {
-        var chanId int
-        for i := range bot.channel {
-                if channel == bot.channel[i] {
-                        chanId = i
-                }
-        }
-        if chanId == 0 {
-                log.Fatalf("chanId not found\n")
-        }
-        return chanId
-}
-

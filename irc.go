@@ -15,7 +15,7 @@ type Bot struct {
 	server		string
 	port		string
 	nick		string
-	channel		map[int]string
+	channel		map[string]int
 	conn		net.Conn
 	mods		map[string]bool
 	lastmsg		int64
@@ -36,7 +36,7 @@ func NewBot() *Bot {
 		server:         "irc.twitch.tv",
 		port:           "6667",
 		nick:           "V4delma",
-		channel:	make(map[int]string),
+		channel:	make(map[string]int),
 		conn:           nil, //Don't change this
 		mods:           make(map[string]bool),
 		lastmsg:	0,
@@ -98,9 +98,9 @@ func main() {
 	go ircbot.ConsoleInput()
 	ircbot.Connect()
 
-	ircbot.channel[1] = "#retku"
-	ircbot.channel[2] = "#firnwath"
-	ircbot.channel[3] = "#herramustikka"
+	ircbot.channel["#retku"] = 1
+	ircbot.channel["#firnwath"] = 2
+	ircbot.channel["#herramustikka"] = 3
 
 	pass1, err := ioutil.ReadFile("twitch_pass.txt")
 	pass := strings.Replace(string(pass1), "\n", "", 0)
@@ -114,9 +114,9 @@ func main() {
 	fmt.Fprintf(ircbot.conn, "NICK %s\r\n", ircbot.nick)
 	fmt.Fprintf(ircbot.conn, "CAP REQ :twitch.tv/membership\r\n")
 	//Looping through all the channels
-	for i := range ircbot.channel {
-		fmt.Fprintf(ircbot.conn, "JOIN %s\r\n", ircbot.channel[i])
-		fmt.Printf("Joined: %s\n", ircbot.channel[i])
+	for k, i := range ircbot.channel {
+		fmt.Fprintf(ircbot.conn, "JOIN %s\r\n", k)
+		fmt.Printf("Joined: %s number %d\n", k, i)
 	}
 	fmt.Printf("Inserted information to server...\n")
 	//Initialize DB = Create tables & add streamers

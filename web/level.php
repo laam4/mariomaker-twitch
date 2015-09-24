@@ -120,7 +120,7 @@ require 'conf.php';
                 echo "<th>" . makeHeaderLink("Message", "Message", $col, $dir) . "</th>";
                 echo "</tr>\n";
                 while($row = $sth->fetch(PDO::FETCH_ASSOC)) {
-                    echo "<tr><td>$row[LevelID]</td><td nowrap>$row[Nick]</td><td nowrap>$row[Level]</td><td style=\"text-align:center\"><img src=\"" . $row[Played] . ".png\" alt=\"img\" height=\"16\" width=\"16\"></td><td nowrap>$row[Passed]</td><td nowrap>$row[Added]</td><td>$row[Message]</td></tr>\n";
+                    echo "<tr><td>$row[LevelID]</td><td nowrap>$row[Nick]</td><td nowrap>$row[Level]</td><td style=\"text-align:center\"><img src=\"" . $row['Played'] . ".png\" alt=\"img\" height=\"16\" width=\"16\"></td><td nowrap>$row[Passed]</td><td nowrap>$row[Added]</td><td>$row[Message]</td></tr>\n";
                 }
                 echo "</table><br />\n";
         ?> </body>

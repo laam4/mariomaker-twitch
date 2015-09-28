@@ -21,18 +21,24 @@ require 'conf.php';
 			case "Level":
 				$out .= "3";
 				break;
-			case "Message":
+			case "Played":
 				$out .= "4";
 				break;
-                        case "Played":
-                                $out .= "5";
-                                break;
-                        case "Added":
+			case "Skipped":
+				$out .= "5";
+				break;
+                        case "Passed":
                                 $out .= "6";
                                 break;
-                        case "Passed":
+                        case "Added":
                                 $out .= "7";
                                 break;
+                        case "Message":
+                                $out .= "8";
+                                break;
+			case "Comment":
+				$out .= "9";
+				break;
 			default:
 				$out .= "0";
 			}
@@ -76,17 +82,23 @@ require 'conf.php';
 			$col = "Level";
 			break;
 		case "4":
-			$col = "Message";
+			$col = "Played";
 			break;
                 case "5":
-                        $col = "Played";
+                        $col = "Skipped";
                         break;
                 case "6":
-                        $col = "Added";
-                        break;
-                case "7":
                         $col = "Passed";
                         break;
+                case "7":
+                        $col = "Added";
+                        break;
+		case "8":
+			$col = "Message";
+			break;
+		case "9":
+			$col = "Comment";
+			break;
 		default:
 			$col = "LevelID";
 	}
@@ -96,32 +108,53 @@ require 'conf.php';
 	else {
 		$dir = "ASC";
 	}
-
-	@$id=$_GET['i']; // Use this line or below line if register_global is off
-	if(strlen($id) > 0 and !is_numeric($id)){ // to check if $cat is numeric data or not. 
-	echo "Data Error";
-	exit;
+	
+	if(isset($_GET['i'])) {
+                @$id=$_GET['i'];
+                if(strlen($id) > 0 and !is_numeric($id)) {
+                echo "ERROR: Not valid value for streamer!";
+                exit;
+		}
+	} 
+	else {
+                echo "ERROR: Streamer not selected!";
+                exit;
 	}	
 
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	$conn->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
-	$que = "SELECT LevelID, Nick, Level, Message, Played, Added, Passed FROM Levels WHERE StreamID= :id ORDER BY $col $dir;";
+	$que = "SELECT LevelID, Nick, Level, Message, Comment, Played, Skipped, Added, Passed FROM Levels WHERE StreamID= :id ORDER BY $col $dir;";
 	$sth = $conn->prepare($que);
 	$sth->bindValue(':id', $id, PDO::PARAM_INT);
 	$sth->execute();
+	$rows = 0;
+	$played = 0;
+	$skipped = 0;
         echo "<table class=\"bordered\" cellspacing=\"0\">\n";
         echo "<tr>";
 		echo "<th>" . makeHeaderLink("ID", "LevelID", $col, $dir) . "</th>";
                 echo "<th>" . makeHeaderLink("Name", "Nick", $col, $dir) . "</th>";
                 echo "<th>" . makeHeaderLink("Level", "Level", $col, $dir) . "</th>";
                 echo "<th>" . makeHeaderLink("Played", "Played", $col, $dir) . "</th>";
+		echo "<th>" . makeHeaderLink("Skipped", "Skipped", $col, $dir) . "</th>";
                 echo "<th>" . makeHeaderLink("Selected", "Passed", $col, $dir) . "</th>";
                 echo "<th>" . makeHeaderLink("Added", "Added", $col, $dir) . "</th>";
                 echo "<th>" . makeHeaderLink("Message", "Message", $col, $dir) . "</th>";
+		echo "<th>" . makeHeaderLink("Comment", "Comment", $col, $dir) . "</th>";
                 echo "</tr>\n";
                 while($row = $sth->fetch(PDO::FETCH_ASSOC)) {
-                    echo "<tr><td>$row[LevelID]</td><td nowrap>$row[Nick]</td><td nowrap>$row[Level]</td><td style=\"text-align:center\"><img src=\"" . $row['Played'] . ".png\" alt=\"img\" height=\"16\" width=\"16\"></td><td nowrap>$row[Passed]</td><td nowrap>$row[Added]</td><td>$row[Message]</td></tr>\n";
+                    echo "<tr><td>$row[LevelID]</td><td nowrap>$row[Nick]</td><td nowrap>$row[Level]</td><td style=\"text-align:center\"><img src=\"" . $row['Played'] . ".png\" alt=\"img\" height=\"16\" width=\"16\"></td><td style=\"text-align:center\"><img src=\"" . $row['Skipped'] . ".png\" alt=\"img\" height=\"16\" width=\"16\"></td><td nowrap>$row[Passed]</td><td nowrap>$row[Added]</td><td>$row[Message]</td><td>$row[Comment]</td></tr>\n";
+		    if ($row['Played']) {
+			if ($row['Skipped']) {
+				$skipped++;
+			} 
+			else {
+				$played++;
+			}
+		    }
+		    $rows++;
                 }
-                echo "</table><br />\n";
+                echo "</table>\n";
+		echo "<span style=\"background-color:white\">Total: $played levels played and $skipped levels skipped out of $rows levels</span>";
         ?> </body>
 </html>

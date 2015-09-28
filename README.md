@@ -9,13 +9,15 @@ Based on https://github.com/Vaultpls/Twitch-IRC-Bot
 - Viewers can get last selected level with the same `!level` command
 - `!reroll` command for rerolling a level and putting the current chosen level back to the random pool
 - Multichannel support and Website support
+- `!skip` command for skipping a level, eg. submitted level not beaten, wrong code etc.
+- `!level` and `!skip` commands supports optional comment parameter, which affects the currently chosen level.
 
 ## Install
 - Go to your go project folder
 - Get MySQL driver `go get github.com/go-sql-driver/mysql`
 - Get twitch bot `go get github.com/laam4/mariomaker-twitch`
 - Create database and user to MySQL
-- Edit irc.go with channel, bot, and mysql details
+- Edit irc.go with channel, bot, and mysql details *TODO: config*
 - Create `twitch_pass.txt` with oauth login for bot
 - Type `go install github.com/laam4/mariomaker-twitch`
 - Run bot from your GOPATH/bin folder
@@ -26,5 +28,4 @@ Based on https://github.com/Vaultpls/Twitch-IRC-Bot
 - Bacon [Mmmm...]
 - Website http://mario.laama.dy.fi/
 - More commands
-- Better logic for SQL queries [Done]
 - Configuration file [WIP]

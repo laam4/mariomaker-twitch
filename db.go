@@ -23,7 +23,7 @@ func (bot *Bot) InitDB() {
         if dberr != nil {
                 log.Fatalf("Error on initializing table Streamers: %s", dberr.Error())
         }
-        _, dberr = db.Exec("CREATE TABLE IF NOT EXISTS Levels ( LevelID MEDIUMINT NOT NULL AUTO_INCREMENT, StreamID MEDIUMINT NOT NULL, Nick VARCHAR(25) NOT NULL, Level VARCHAR(22) NOT NULL, Message VARCHAR(255) NOT NULL, Played BOOLEAN NOT NULL, Added DATETIME NOT NULL, Passed DATETIME NOT NULL,PRIMARY KEY (LevelID) ) ENGINE=MyISAM DEFAULT CHARSET=utf8;")
+        _, dberr = db.Exec("CREATE TABLE IF NOT EXISTS Levels ( LevelID MEDIUMINT NOT NULL AUTO_INCREMENT, StreamID MEDIUMINT NOT NULL, Nick VARCHAR(25) NOT NULL, Level VARCHAR(22) NOT NULL, Message VARCHAR(255) NOT NULL, Comment VARCHAR(255) NOT NULL, Played BOOLEAN NOT NULL, Skipped BOOLEAN NOT NULL, Added DATETIME NOT NULL, Passed DATETIME NOT NULL,PRIMARY KEY (LevelID) ) ENGINE=MyISAM DEFAULT CHARSET=utf8;")
         if dberr != nil {
                 log.Fatalf("Error on initializing table Levelsn: %s", dberr.Error())
         }
@@ -31,11 +31,11 @@ func (bot *Bot) InitDB() {
         var Streamer int
         for k, i := range bot.channel {
                 chanName := strings.Replace(k, "#", "", 1)
-                checkStream := db.QueryRow("SELECT StreamID FROM Streamers WHERE Name=?", chanName).Scan(&Streamer)
+                checkStream := db.QueryRow("SELECT StreamID FROM Streamers WHERE Name=?;", chanName).Scan(&Streamer)
                 switch {
                 case checkStream == sql.ErrNoRows:
                         fmt.Printf("No streamer ID, Adding...\n")
-                        insertStream, dberr := db.Prepare("INSERT Streamers SET Name=?,StreamID=?")
+                        insertStream, dberr := db.Prepare("INSERT Streamers SET Name=?,StreamID=?;")
                         if dberr != nil {
                                 log.Fatalf("Cannot prepare streamer %s, error: %s\n", chanName, dberr.Error())
                         }
@@ -62,11 +62,11 @@ func (bot *Bot) writeLevelDB(channel string, userName string, userMessage string
 	chanId := bot.channel[channel]
 	//Check for duplicate LevelId for this channel
         var duplicateLevel string
-        checkDuplicate := db.QueryRow("SELECT Level FROM Levels WHERE Level=? AND StreamID=?", levelId,chanId).Scan(&duplicateLevel)
+        checkDuplicate := db.QueryRow("SELECT Level FROM Levels WHERE Level=? AND StreamID=?;", levelId,chanId).Scan(&duplicateLevel)
         switch {
         case checkDuplicate == sql.ErrNoRows:
                 fmt.Printf("No such level, Adding...\n")
-                insertLevel, dberr := db.Prepare("INSERT Levels SET StreamID=?,Nick=?,Level=?,Message=?,Added=?")
+                insertLevel, dberr := db.Prepare("INSERT Levels SET StreamID=?,Nick=?,Level=?,Message=?,Added=?;")
 		if dberr != nil {
 			log.Fatalf("Cannot prepare insertLevel on %s: %s\n", channel, dberr.Error())
 		}
@@ -92,11 +92,14 @@ func (bot *Bot) writeLevelDB(channel string, userName string, userMessage string
         }
 }
 
-func (bot *Bot) getLevel(streamer bool, channel string) string {
+func (bot *Bot) getLevel(streamer bool, channel string, comment string) string {
 	
 	chanId := bot.channel[channel]
 	//Choose new random level if streamer, else get last random level
 	if streamer {
+		if bot.levelId[chanId] != 0 && comment != "" {
+			doComment(comment, bot.levelId[chanId])
+                }
 		var levelId int
 		var userName string
 		var level string
@@ -115,7 +118,7 @@ func (bot *Bot) getLevel(streamer bool, channel string) string {
 			bot.level[chanId] = level
         	}
 
-                updatePlayed, dberr := db.Prepare("UPDATE Levels SET Played=1,Passed=? WHERE LevelID=?")
+                updatePlayed, dberr := db.Prepare("UPDATE Levels SET Played=1,Passed=? WHERE LevelID=?;")
 		if dberr != nil {
 			log.Fatalf("Cannot prepare updatePlayed on %s: %s\n", channel, dberr.Error())
 		}
@@ -130,7 +133,8 @@ func (bot *Bot) getLevel(streamer bool, channel string) string {
 		}
                 fmt.Printf("Updated played=true for level %d , rows affected %d\n", bot.levelId[chanId], rowsAff)
 		chanName := strings.Replace(channel, "#", "@", 1)
-		result := fmt.Sprintf("%s: %s by %s | #%d[%s] %s", chanName, bot.level[chanId], bot.userName[chanId], bot.levelId[chanId], added, message)
+		msg := strings.Replace(message, "%", "%%", -1)
+		result := fmt.Sprintf("%s: %s by %s | #%d[%s] %s", chanName, bot.level[chanId], bot.userName[chanId], bot.levelId[chanId], added, msg)
 		return result
 	} else {
 		if bot.level[chanId] == "" {
@@ -151,7 +155,7 @@ func (bot *Bot) doReroll(channel string) string {
         } else {
 		//Save old levelId and get new level before setting Played back to false
 		oldLevelId := bot.levelId[chanId]
-		result := bot.getLevel(true,channel)
+		result := bot.getLevel(true,channel,"")
 		rerollPlayed, dberr := db.Prepare("UPDATE Levels SET Played=0,Passed='0000-00-00 00:00:00' WHERE LevelID=?;")
                 if dberr != nil {
                         log.Fatalf("Cannot revert rerollPlayed on %s: %s\n", channel, dberr.Error())
@@ -170,20 +174,73 @@ func (bot *Bot) doReroll(channel string) string {
 	return "Kappa"
 }
 
+func (bot *Bot) doSkip(channel string, comment string) string {
+
+        chanId := bot.channel[channel]
+        if bot.level[chanId] == "" {
+                return "Cannot skip without level Kappa"
+        } else {
+                //Save old levelId and get new level before setting Played back to false
+                oldLevelId := bot.levelId[chanId]
+		//if comment != "" {
+		//	doComment(comment, oldLevelId)
+		//}
+                result := bot.getLevel(true,channel,comment)
+                skipPlayed, dberr := db.Prepare("UPDATE Levels SET Skipped=1 WHERE LevelID=?;")
+                if dberr != nil {
+                        log.Fatalf("Cannot skip skipPlayed on %s: %s\n", channel, dberr.Error())
+                }
+                execPlayed, dberr := skipPlayed.Exec(oldLevelId)
+                if dberr != nil {
+                        log.Fatalf("Cannot exec skipPlayed on %s: %s\n", channel, dberr.Error())
+                }
+                rowsAff, dberr := execPlayed.RowsAffected()
+                if dberr != nil {
+                        log.Fatalf("No rows changed on %s: %s\n", channel, dberr.Error())
+                }
+                fmt.Printf("Updated skipped=true for level %d , rows affected %d\n", oldLevelId, rowsAff)
+                return result
+        }
+        return "Kappa"
+}
+
+func doComment(comment string, levelid int) {
+	addComment, dberr := db.Prepare("UPDATE Levels SET Comment=? WHERE LevelID=?;")
+        if dberr != nil {
+		log.Fatalf("Cannot add comment on %s: %s\n", levelid, dberr.Error())
+	}
+	execComment, dberr := addComment.Exec(comment, levelid)
+	if dberr != nil {
+		log.Fatalf("Cannot exec addComment on %s: %s\n", levelid, dberr.Error())
+	}
+	rowsAff, dberr := execComment.RowsAffected()
+	if dberr != nil {
+		log.Fatalf("No rows changed on %s: %s\n", levelid, dberr.Error())
+	}
+	fmt.Printf("Added comment for level %d , rows affected %d\n", levelid, rowsAff)
+}
+
+
+
 func (bot *Bot) getStats(channel string) string {
 	
 	chanId := bot.channel[channel]
 
 	var allCount int
 	var playCount int
-	allLevels := db.QueryRow("SELECT count(Played) FROM Levels WHERE StreamID=?", chanId).Scan(&allCount)
+	var skipCount int
+	allLevels := db.QueryRow("SELECT count(Played) FROM Levels WHERE StreamID=?;", chanId).Scan(&allCount)
 	if allLevels != nil {
 		log.Fatalf("Cannot count levels: %s", allLevels.Error())
 	}
-	playedLevels := db.QueryRow(" SELECT count(Played) FROM Levels WHERE StreamID=? AND Played=1", chanId).Scan(&playCount)
+	playedLevels := db.QueryRow("SELECT count(Played) FROM Levels WHERE StreamID=? AND Played=1 AND Skipped=0;", chanId).Scan(&playCount)
 	if playedLevels != nil {
 		log.Fatalf("Cannot count played levels: %s", playedLevels.Error())
 	}
-	result := fmt.Sprintf("Streamer has played %d levels from %d", playCount, allCount)
+        skipLevels := db.QueryRow("SELECT count(Played) FROM Levels WHERE StreamID=? AND Skipped=1;", chanId).Scan(&skipCount)
+        if skipLevels != nil {
+                log.Fatalf("Cannot count skipped levels: %s", skipLevels.Error())
+        }
+	result := fmt.Sprintf("Streamer has %d lvls played and %d lvls skipped out of %d levels", playCount, skipCount, allCount)
         return result
 }

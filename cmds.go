@@ -23,14 +23,20 @@ func (bot *Bot) CmdInterpreter(channel string, username string, usermessage stri
 
 	if strings.HasPrefix(usermessage, "!level") {
 		if bot.isStreamer(username,channel) {
-			bot.Message(channel,bot.getLevel(true,channel))
+			message := strings.Replace(usermessage, "!level", "", 1)
+			bot.Message(channel,bot.getLevel(true,channel,message))
 		} else {
-			bot.Message(channel,bot.getLevel(false,channel))
+			bot.Message(channel,bot.getLevel(false,channel,""))
 		}
 	} else if strings.HasPrefix(usermessage, "!reroll") {
 		if bot.isStreamer(username,channel) {
 			bot.Message(channel,bot.doReroll(channel))
 		}
+	} else if strings.HasPrefix(usermessage, "!skip") {
+		if bot.isStreamer(username,channel) {
+			message := strings.Replace(usermessage, "!skip", "", 1)
+                        bot.Message(channel,bot.doSkip(channel,message))
+                }
 	} else if strings.HasPrefix(usermessage, "!stats") {
 		bot.Message(channel,bot.getStats(channel))
 	}

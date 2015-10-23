@@ -28,4 +28,3 @@ IRC code Based on https://github.com/Vaultpls/Twitch-IRC-Bot
 - Website http://mario.laama.dy.fi/
 - More commands
 - Whisper support
->>>>>>> 9fd8968738b0a600668ba8937d074a878f0108b5

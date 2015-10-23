@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/laam4/mariomaker-twitch.svg?branch=master)](https://travis-ci.org/laam4/mariomaker-twitch)
+
 # Super Mario Maker twitch bot
 Twitch bot written in golang which collects Super Mario Maker level codes and adds them to MySQL database.
 

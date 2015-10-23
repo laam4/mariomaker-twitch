@@ -14,13 +14,12 @@ Based on https://github.com/Vaultpls/Twitch-IRC-Bot
 
 ## Install
 - Go to your go project folder
-- Get MySQL driver `go get github.com/go-sql-driver/mysql`
+- Get dependencies `go get github.com/go-sql-driver/mysql` `go get github.com/fatih/color` `go get github.com/vharitonsky/iniflags`
 - Get twitch bot `go get github.com/laam4/mariomaker-twitch`
 - Create database and user to MySQL
-- Edit irc.go with channel, bot, and mysql details *TODO: config*
-- Create `twitch_pass.txt` with oauth login for bot
+- Edit `default.ini`
 - Type `go install github.com/laam4/mariomaker-twitch`
-- Run bot from your GOPATH/bin folder
+- Run bot from your GOPATH/bin folder with -config parameter
 
 ## TODO:
 - Code cleanup [Almost done]
@@ -28,4 +27,3 @@ Based on https://github.com/Vaultpls/Twitch-IRC-Bot
 - Bacon [Mmmm...]
 - Website http://mario.laama.dy.fi/
 - More commands
-- Configuration file [WIP]

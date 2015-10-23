@@ -16,10 +16,9 @@ import (
 
 var db *sql.DB
 var dberr error
-var try int
 
-func (bot *Bot) InitDB() {
-        db, dberr = sql.Open("mysql", bot.user+":"+bot.pass+"@"+bot.host+"/"+bot.database)
+func InitDB() {
+        db, dberr = sql.Open("mysql", database)
         if dberr != nil {
                 log.Fatalf("Error on initializing database connection: %s", dberr.Error())
         }
@@ -30,13 +29,13 @@ func (bot *Bot) InitDB() {
         }
         _, dberr = db.Exec("CREATE TABLE IF NOT EXISTS Levels ( LevelID MEDIUMINT NOT NULL AUTO_INCREMENT, StreamID MEDIUMINT NOT NULL, Nick VARCHAR(25) NOT NULL, Level VARCHAR(22) NOT NULL, Message VARCHAR(255) NOT NULL, Comment VARCHAR(255) NOT NULL, Played BOOLEAN NOT NULL, Skipped BOOLEAN NOT NULL, Added DATETIME NOT NULL, Passed DATETIME NOT NULL,PRIMARY KEY (LevelID) ) ENGINE=MyISAM DEFAULT CHARSET=utf8;")
         if dberr != nil {
-                log.Fatalf("Error on initializing table Levelsn: %s", dberr.Error())
+                log.Fatalf("Error on initializing table Levels: %s", dberr.Error())
         }
 
 	blue := color.New(color.FgBlue).SprintFunc()
         var Streamer int
 	fmt.Printf("dbStreamers: ")
-        for k, i := range bot.channel {
+        for k, i := range channels {
                 chanName := strings.Replace(k, "#", "", 1)
                 checkStream := db.QueryRow("SELECT StreamID FROM Streamers WHERE Name=?;", chanName).Scan(&Streamer)
                 switch {
@@ -59,14 +58,14 @@ func (bot *Bot) InitDB() {
                 case checkStream != nil:
                         log.Fatalf("Database query to Streamers table error: %s\n", checkStream.Error())
                 default:
-                        fmt.Printf("%s is #%d, ", blue(k), Streamer)
+			fmt.Printf("#%d: %s, ", Streamer, blue(k))
                 }
         }
 	fmt.Printf("\n")
 }
 
-func (bot *Bot) writeLevelDB(channel string, userName string, userMessage string, levelId string) {
-	chanId := bot.channel[channel]
+func writeLevelDB(channel string, userName string, userMessage string, levelId string) {
+	chanId := channels[channel]
 //Check for duplicate LevelId for this channel
         var duplicateLevel string
         checkDuplicate := db.QueryRow("SELECT Level FROM Levels WHERE Level=? AND StreamID=?;", levelId,chanId).Scan(&duplicateLevel)
@@ -99,14 +98,14 @@ func (bot *Bot) writeLevelDB(channel string, userName string, userMessage string
         }
 }
 
-func (bot *Bot) getLevel(streamer bool, channel string, comment string) string {
+func getLevel(streamer bool, channel string, comment string) string {
 	var result string
 	var online bool
-	chanId := bot.channel[channel]
+	chanId := channels[channel]
 	//Choose new random level if streamer, else get last random level
 	if streamer {
-		if bot.levelId[chanId] != 0 && comment != "" {
-			doComment(comment, bot.levelId[chanId])
+		if g_levelId[chanId] != 0 && comment != "" {
+			doComment(comment, g_levelId[chanId])
                 }
 		var levelId int
 		var userName string
@@ -124,9 +123,9 @@ func (bot *Bot) getLevel(streamer bool, channel string, comment string) string {
                 	dberr = getrLevel.Scan(&levelId,  &userName, &level, &message,  &added)
 			fmt.Printf("#%d %s by %s | ", levelId, level, userName)
 			if isWatching(channel,userName) {
-                       		bot.levelId[chanId] = levelId
-                       		bot.userName[chanId] = userName
-                       		bot.level[chanId] = level
+                       		g_levelId[chanId] = levelId
+                       		g_userName[chanId] = userName
+                       		g_level[chanId] = level
 				color.Green("Online\n")
 				online = true
 				break
@@ -144,7 +143,7 @@ func (bot *Bot) getLevel(streamer bool, channel string, comment string) string {
                		log.Fatalf("Cannot prepare updatePlayed on %s: %s\n", channel, dberr.Error())
                	}
                	timeNow := time.Now().Format(time.RFC3339)
-               	execPlayed, dberr := updatePlayed.Exec(timeNow, bot.levelId[chanId])
+               	execPlayed, dberr := updatePlayed.Exec(timeNow, g_levelId[chanId])
                	if dberr != nil {
                		log.Fatalf("Cannot exec updatePlayed on %s: %s\n", channel, dberr.Error())
                	}
@@ -152,30 +151,30 @@ func (bot *Bot) getLevel(streamer bool, channel string, comment string) string {
                	if dberr != nil {
                		log.Fatalf("No rows changed on %s: %s\n", channel, dberr.Error())
                	}
-               	fmt.Printf("Updated played=true for level %d, rows %d\n", bot.levelId[chanId], rowsAff)
+               	fmt.Printf("Updated played=true for level %d, rows %d\n", g_levelId[chanId], rowsAff)
                	chanName := strings.Replace(channel, "#", "@", 1)
                	msg := strings.Replace(message, "%", "%%", -1)
-               	result = fmt.Sprintf("%s: %s by %s | #%d[%s] %s", chanName, bot.level[chanId], bot.userName[chanId], bot.levelId[chanId], added, msg)
+               	result = fmt.Sprintf("%s: %s by %s | #%d[%s] %s", chanName, g_level[chanId], g_userName[chanId], g_levelId[chanId], added, msg)
         } else {
-                if bot.level[chanId] == "" {
+                if g_level[chanId] == "" {
                         return "Level not selected BibleThump"
                 } else {
-                result = fmt.Sprintf("Last played level #%d: %s by %s", bot.levelId[chanId], bot.level[chanId], bot.userName[chanId])
+                result = fmt.Sprintf("Last played level #%d: %s by %s", g_levelId[chanId], g_level[chanId], g_userName[chanId])
                 //return result
                 }
         }
         return result
 }
 
-func (bot *Bot) doReroll(channel string) string {
+func doReroll(channel string) string {
 
-        chanId := bot.channel[channel]
-        if bot.level[chanId] == "" {
+        chanId := channels[channel]
+        if g_level[chanId] == "" {
 		return "Cannot reroll without level Kappa"
         } else {
 		//Save old levelId and get new level before setting Played back to false
-		oldLevelId := bot.levelId[chanId]
-		result := bot.getLevel(true,channel,"")
+		oldLevelId := g_levelId[chanId]
+		result := getLevel(true,channel,"")
 		rerollPlayed, dberr := db.Prepare("UPDATE Levels SET Played=0,Passed='0000-00-00 00:00:00' WHERE LevelID=?;")
                 if dberr != nil {
                         log.Fatalf("Cannot revert rerollPlayed on %s: %s\n", channel, dberr.Error())
@@ -194,18 +193,18 @@ func (bot *Bot) doReroll(channel string) string {
 	return "Kappa"
 }
 
-func (bot *Bot) doSkip(channel string, comment string) string {
+func doSkip(channel string, comment string) string {
 
-        chanId := bot.channel[channel]
-        if bot.level[chanId] == "" {
+        chanId := channels[channel]
+        if g_level[chanId] == "" {
                 return "Cannot skip without level Kappa"
         } else {
                 //Save old levelId and get new level before setting Played back to false
-                oldLevelId := bot.levelId[chanId]
+                oldLevelId := g_levelId[chanId]
 		//if comment != "" {
 		//	doComment(comment, oldLevelId)
 		//}
-                result := bot.getLevel(true,channel,comment)
+                result := getLevel(true,channel,comment)
                 skipPlayed, dberr := db.Prepare("UPDATE Levels SET Skipped=1 WHERE LevelID=?;")
                 if dberr != nil {
                         log.Fatalf("Cannot skip skipPlayed on %s: %s\n", channel, dberr.Error())
@@ -242,9 +241,9 @@ func doComment(comment string, levelid int) {
 
 
 
-func (bot *Bot) getStats(channel string) string {
+func getStats(channel string) string {
 	
-	chanId := bot.channel[channel]
+	chanId := channels[channel]
 
 	var allCount int
 	var playCount int

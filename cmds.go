@@ -3,12 +3,12 @@ package main
 
 import (
 	"fmt"
-	"strings"
-	"regexp"
-	"net/http"
 	"io/ioutil"
-	"net/url"
 	"log"
+	"net/http"
+	"net/url"
+	"regexp"
+	"strings"
 	"time"
 )
 
@@ -24,42 +24,42 @@ func CmdInterpreter(channel string, username string, usermessage string) {
 		levelid := re.FindString(usermessage)
 		//Remove the levelid from the message
 		msg := strings.Replace(usermessage, levelid, "", 1)
-		fmt.Printf("Triggered @ %s: %s and %s\n", channel,username,levelid)
-		writeLevelDB(channel,username,msg,levelid)
+		fmt.Printf("Triggered @ %s: %s and %s\n", channel, username, levelid)
+		writeLevelDB(channel, username, msg, levelid)
 	} else if strings.Contains(usermessage, nick) || strings.Contains(usermessage, strings.ToLower(nick)) {
 		msg := strings.Replace(usermessage, nick, "", 1)
 		if msg != "" && lastchat+10 <= time.Now().Unix() {
-		//if msg != "" {
-			Message(channel,askOracle(username,msg))
+			//if msg != "" {
+			Message(channel, askOracle(username, msg))
 			lastchat = time.Now().Unix()
 		}
 	} else if strings.HasPrefix(usermessage, "!level") {
-		if isStreamer(username,channel) {
+		if isStreamer(username, channel) {
 			message := strings.Replace(usermessage, "!level", "", 1)
-			Message(channel,getLevel(true,channel,message))
+			Message(channel, getLevel(true, channel, message))
 		} else {
-			Message(channel,getLevel(false,channel,""))
+			Message(channel, getLevel(false, channel, ""))
 		}
 	} else if strings.HasPrefix(usermessage, "!reroll") {
-		if isStreamer(username,channel) {
-			Message(channel,doReroll(channel))
+		if isStreamer(username, channel) {
+			Message(channel, doReroll(channel))
 		}
 	} else if strings.HasPrefix(usermessage, "!skip") {
-		if isStreamer(username,channel) {
+		if isStreamer(username, channel) {
 			message := strings.Replace(usermessage, "!skip", "", 1)
-                        Message(channel,doSkip(channel,message))
-                }
+			Message(channel, doSkip(channel, message))
+		}
 	} else if strings.HasPrefix(usermessage, "!stats") {
-		Message(channel,getStats(channel))
+		Message(channel, getStats(channel))
 	}
 }
 
 func isStreamer(username string, channel string) bool {
-        temp := strings.Replace(channel, "#", "", 1)
-        if temp == strings.ToLower(username) {
-                return true
-        }
-        return false
+	temp := strings.Replace(channel, "#", "", 1)
+	if temp == strings.ToLower(username) {
+		return true
+	}
+	return false
 }
 
 func askOracle(username string, message string) string {
@@ -69,10 +69,10 @@ func askOracle(username string, message string) string {
 	if err != nil {
 		log.Fatalf("Cannot get URL response: %s\n", err.Error())
 	} else {
-        	defer response.Body.Close()
+		defer response.Body.Close()
 		contents, err := ioutil.ReadAll(response.Body)
 		if err != nil {
-		log.Fatalf("Cannot read URL response: %s\n", err.Error())
+			log.Fatalf("Cannot read URL response: %s\n", err.Error())
 		}
 		answer := strings.Replace(toUtf8(contents), "\n", "", 1)
 		result := fmt.Sprintf("%s: %s", username, answer)
@@ -82,9 +82,9 @@ func askOracle(username string, message string) string {
 }
 
 func toUtf8(iso8859_1_buf []byte) string {
-    buf := make([]rune, len(iso8859_1_buf))
-    for i, b := range iso8859_1_buf {
-        buf[i] = rune(b)
-    }
-    return string(buf)
+	buf := make([]rune, len(iso8859_1_buf))
+	for i, b := range iso8859_1_buf {
+		buf[i] = rune(b)
+	}
+	return string(buf)
 }

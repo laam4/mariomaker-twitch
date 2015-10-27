@@ -1,5 +1,6 @@
 # Super Mario Maker twitch bot
 [![Build Status](https://travis-ci.org/laam4/mariomaker-twitch.svg?branch=master)](https://travis-ci.org/laam4/mariomaker-twitch)
+
 Twitch bot written in golang which collects Super Mario Maker level codes and adds them to MySQL database.
 
 IRC code Based on https://github.com/Vaultpls/Twitch-IRC-Bot
@@ -24,7 +25,7 @@ IRC code Based on https://github.com/Vaultpls/Twitch-IRC-Bot
 - Run bot from your GOPATH/bin folder with -config parameter
 
 ## TODO:
-- Code cleanup and better parsing
+- Code cleanup
 - Error handling
 - Website http://mario.laama.dy.fi/
 - More commands

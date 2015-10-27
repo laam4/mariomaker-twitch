@@ -2,48 +2,50 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
+	"github.com/fatih/color"
+	"github.com/vharitonsky/iniflags"
 	"net"
 	"net/textproto"
 	"os"
 	"strings"
 	"time"
-	"flag"
-	"github.com/fatih/color"
-	"github.com/vharitonsky/iniflags"
 )
 
 var (
-    red = color.New(color.FgRed).SprintFunc()
-    green = color.New(color.FgGreen).SprintFunc()
-    yellow = color.New(color.FgYellow).SprintFunc()
-    blue = color.New(color.FgBlue).SprintFunc()
-    magenta = color.New(color.FgMagenta).SprintFunc()
-    cyan = color.New(color.FgCyan).SprintFunc()
-    white = color.New(color.FgWhite).SprintFunc()
-    info = color.New(color.FgWhite, color.BgGreen).SprintFunc()
-    server string
-    port string
-    nick string
-    channellist string
-    database string
-    oauth string
-    lastmsg int64 = 0
-    maxMsgTime int64 = 5
-    g_levelId map[int]int
-    g_userName map[int]string
-    g_level map[int]string
-    channels map[string]int
-    conn net.Conn
+	red         = color.New(color.FgRed).SprintFunc()
+	green       = color.New(color.FgGreen).SprintFunc()
+	yellow      = color.New(color.FgYellow).SprintFunc()
+	blue        = color.New(color.FgBlue).SprintFunc()
+	magenta     = color.New(color.FgMagenta).SprintFunc()
+	cyan        = color.New(color.FgCyan).SprintFunc()
+	white       = color.New(color.FgWhite).SprintFunc()
+	info        = color.New(color.FgWhite, color.BgGreen).SprintFunc()
+	bg_magenta  = color.New(color.FgWhite, color.BgMagenta).SprintFunc()
+	bg_yellow   = color.New(color.FgWhite, color.BgYellow).SprintFunc()
+	server      string
+	port        string
+	nick        string
+	channellist string
+	database    string
+	oauth       string
+	lastmsg     int64 = 0
+	maxMsgTime  int64 = 5
+	g_levelId   map[int]int
+	g_userName  map[int]string
+	g_level     map[int]string
+	channels    map[string]int
+	conn        net.Conn
 )
 
 func init() {
-    flag.StringVar(&server, "server", "irc.twitch.tv", "IRC server address")
-    flag.StringVar(&port, "port", "6667", "IRC server port")
-    flag.StringVar(&nick, "nick", "Botname", "Bot's nickname")
-    flag.StringVar(&channellist, "channellist", "#botname", "Comma separated list of channel to join")
-    flag.StringVar(&database, "database", "username:password@protocol(address)/dbname?param=value", "MySQL Data Source Name")
-    flag.StringVar(&oauth, "oauth", "oauth:token", "OAuth token for login, https://twitchapps.com/tmi/")
+	flag.StringVar(&server, "server", "irc.twitch.tv", "IRC server address")
+	flag.StringVar(&port, "port", "6667", "IRC server port")
+	flag.StringVar(&nick, "nick", "Botname", "Bot's nickname")
+	flag.StringVar(&channellist, "channellist", "#botname", "Comma separated list of channel to join")
+	flag.StringVar(&database, "database", "username:password@protocol(address)/dbname?param=value", "MySQL Data Source Name")
+	flag.StringVar(&oauth, "oauth", "oauth:token", "OAuth token for login, https://twitchapps.com/tmi/")
 }
 
 func Connect() {
@@ -63,7 +65,7 @@ func Message(channel string, message string) {
 		return
 	}
 	if lastmsg+maxMsgTime <= time.Now().Unix() {
-		fmt.Printf("[%s] %s <%s> %s\n", time.Now().Format("15:04"), blue(channel), nick, white(message))
+		fmt.Printf("[%s] %s <%s> %s\n", time.Now().Format("15:04"), blue(channel), bg_magenta(nick), white(message))
 		fmt.Fprintf(conn, "PRIVMSG "+channel+" :"+message+"\r\n")
 		lastmsg = time.Now().Unix()
 	} else {
@@ -88,22 +90,44 @@ func ConsoleInput() {
 	}
 }
 
-func getColor(c string, name string) string {
-	switch(c) {
-		case "#0000FF", "#5F9EA0":
-			return blue(name)
-		case "#FF0000", "#B22222", "#FF7F50", "#CC0000":
-			return red(name)
-		case "#8A2BE2", "#FF69B4", "#FF6BB5":
-			return magenta(name)
-		case "#008000", "#00FF7F", "#2E8B57", "#9ACD32":
-			return green(name)
-		case "#DAA520", "#FF4500", "#D2691E", "#FFFF00":
-			return yellow(name)
-		case "#1E90FF", "#00FFFF":
-			return cyan(name)
-		default:
-			return white(name)
+func fmtName(c string, name string, sub string, turbo string, utype string) string {
+	var p string
+	switch utype {
+	case "mod", "globalmod":
+		p = info("♣")
+	case "staff":
+		p = "S"
+	case "admin":
+		p = "A"
+	}
+	if sub == "1" {
+		p = p + bg_yellow("☻")
+	}
+	if turbo == "1" {
+		p = p + bg_magenta("T")
+	}
+	switch c {
+	case "#0000FF", "#5F9EA0":
+		p = p + " " + blue(name)
+		return p
+	case "#FF0000", "#B22222", "#FF7F50", "#CC0000":
+		p = p + " " + red(name)
+		return p
+	case "#8A2BE2", "#FF69B4", "#FF6BB5":
+		p = p + " " + magenta(name)
+		return p
+	case "#008000", "#00FF7F", "#2E8B57", "#9ACD32":
+		p = p + " " + green(name)
+		return p
+	case "#DAA520", "#FF4500", "#D2691E", "#FFFF00":
+		p = p + " " + yellow(name)
+		return p
+	case "#1E90FF", "#00FFFF":
+		p = p + " " + cyan(name)
+		return p
+	default:
+		p = p + " " + name
+		return p
 	}
 }
 
@@ -125,7 +149,7 @@ func main() {
 	fmt.Fprintf(conn, "PASS %s\r\n", oauth)
 	fmt.Fprintf(conn, "NICK %s\r\n", nick)
 	fmt.Fprintf(conn, "CAP REQ :twitch.tv/membership twitch.tv/tags twitch.tv/commands\r\n")
-	
+
 	fmt.Printf("Channels: ")
 	//Looping through all the channels
 	for k, i := range channels {
@@ -145,29 +169,75 @@ func main() {
 		if err != nil {
 			break // break loop on errors
 		}
-		if strings.Contains(line, "PING") {
-			//Twitch always gives PING tmi.twitch.tv, may change this to read the PING line
-			fmt.Fprintf(conn, "PONG tmi.twitch.tv\r\n")
-		} else if strings.Contains(line, ".tmi.twitch.tv PRIVMSG") {
-                        userdata := strings.Split(line, ".tmi.twitch.tv PRIVMSG ")
-			chanmsg := strings.SplitN(userdata[1], " :", 2)
-                        tags := strings.Split(userdata[0], ";")
-			if strings.Contains(tags[0], "twitchnotify") {
-				username := strings.Split(tags[0], "@")
-				fmt.Printf("[%s] %s %s %s\n", time.Now().Format("15:04"), blue(chanmsg[0]),  info(username[1]), white(chanmsg[1]))
-			} else {
-				dispname := strings.Replace(tags[1], "display-name=", "", 1)
-				var username string
-				if dispname == "" {
-					name := strings.Split(userdata[0], "@")
-					username = name[2]
-				} else {
-					username = dispname
-				}
-                        	color := strings.Replace(tags[0], "@color=", "", 1)
-				fmt.Printf("[%s] %s <%s> %s\n", time.Now().Format("15:04"), blue(chanmsg[0]), getColor(color,username), white(chanmsg[1]))
-				go CmdInterpreter(chanmsg[0], username, chanmsg[1])
+		var (
+			username string
+			irc      map[string]string
+			tags     map[string]string
+			isTags   bool
+		)
+		irc = parseIRC(line)
+		if irc["tags"] != "" {
+			tags = parseTags(irc["tags"])
+			isTags = true
+		}
+		switch irc["command"] {
+		case "PING":
+			fmt.Fprintf(conn, "PONG %s\r\n", strings.Replace(irc["trailing"], ":", "", 1))
+			fmt.Printf(info("PONG\n"))
+		case "PRIVMSG":
+			if isTags {
+				username = tags["display-name"]
 			}
+			if username == "" {
+				split := strings.Split(irc["prefix"], "!")
+				username = strings.Replace(split[0], ":", "", 1)
+			}
+			msg := strings.Replace(irc["trailing"], ":", "", 1)
+			fmt.Printf("[%s] %s <%s> %s\n", time.Now().Format("15:04"), blue(irc["params"]), fmtName(tags["@color"], username, tags["subscriber"], tags["turbo"], tags["user-type"]), white(msg))
+			go CmdInterpreter(irc["params"], username, msg)
+			//fmt.Printf("%q\n", irc)
+		default:
+			//fmt.Printf("%q\n", irc)
 		}
 	}
+}
+
+func parseIRC(line string) map[string]string {
+	split := strings.Split(line, " ")
+	part := 0
+	var key string
+	msg := make(map[string]string)
+	for i := range split {
+		if part == 4 {
+		} else if part == 0 && strings.HasPrefix(split[i], "@") {
+			key = "tags"
+		} else if part < 1 && strings.HasPrefix(split[i], ":") {
+			part = 1
+			key = "prefix"
+		} else if part < 2 {
+			part = 2
+			key = "command"
+		} else if part >= 2 && strings.HasPrefix(split[i], ":") {
+			part = 4
+			key = "trailing"
+		} else {
+			part = 3
+			key = "params"
+		}
+		if msg[key] != "" {
+			msg[key] = msg[key] + " "
+		}
+		msg[key] = msg[key] + split[i]
+	}
+	return msg
+}
+
+func parseTags(line string) map[string]string {
+	split := strings.Split(line, ";")
+	tags := make(map[string]string)
+	for i := range split {
+		splat := strings.Split(split[i], "=")
+		tags[splat[0]] = splat[1]
+	}
+	return tags
 }

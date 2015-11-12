@@ -22,7 +22,10 @@ func InitDB() {
 	if dberr != nil {
 		log.Fatalf("Error on initializing database connection: %s", dberr.Error())
 	}
-
+	//[MySQL] packets.go:118: write unix /var/lib/mysql/mysql.sock: broken pipe
+	db.SetMaxIdleConns(0)
+	
+	//Create tables
 	_, dberr = db.Exec("CREATE TABLE IF NOT EXISTS Streamers ( StreamID MEDIUMINT NOT NULL, Name VARCHAR(25) NOT NULL UNIQUE, PRIMARY KEY (StreamID) ) ENGINE=MyISAM DEFAULT CHARSET=utf8;")
 	if dberr != nil {
 		log.Fatalf("Error on initializing table Streamers: %s", dberr.Error())
@@ -30,6 +33,10 @@ func InitDB() {
 	_, dberr = db.Exec("CREATE TABLE IF NOT EXISTS Levels ( LevelID MEDIUMINT NOT NULL AUTO_INCREMENT, StreamID MEDIUMINT NOT NULL, Nick VARCHAR(25) NOT NULL, Level VARCHAR(22) NOT NULL, Message VARCHAR(255) NOT NULL, Comment VARCHAR(255) NOT NULL, Played BOOLEAN NOT NULL, Skipped BOOLEAN NOT NULL, Added DATETIME NOT NULL, Passed DATETIME NOT NULL,PRIMARY KEY (LevelID) ) ENGINE=MyISAM DEFAULT CHARSET=utf8;")
 	if dberr != nil {
 		log.Fatalf("Error on initializing table Levels: %s", dberr.Error())
+	}
+	_, dberr = db.Exec("CREATE TABLE IF NOT EXISTS Subscribers ( SubID MEDIUMINT NOT NULL AUTO_INCREMENT, StreamID MEDIUMINT NOT NULL, Nick VARCHAR(25) NOT NULL, MonthsInRow TINYINT NOT NULL, MonthsTotal TINYINT NOT NULL, Lastsub DATETIME NOT NULL,PRIMARY KEY (SubID) ) ENGINE=MyISAM DEFAULT CHARSET=utf8;")
+	if dberr != nil {
+		log.Fatalf("Error on initializing table Subscribers: %s", dberr.Error())
 	}
 
 	blue := color.New(color.FgBlue).SprintFunc()
@@ -293,4 +300,48 @@ func isWatching(channel string, name string) bool {
 		}
 	}
 	return false
+}
+
+func writeSubs(channel string, name string, months string) {
+	chanId := channels[channel]
+	var monthsTotal int
+	var subID int
+	checkSub := db.QueryRow("SELECT SubID,MonthsTotal FROM Subscribers WHERE Nick=? AND StreamID=?;", name, chanId).Scan(&subID, &monthsTotal)
+	switch {
+	case checkSub == sql.ErrNoRows:
+		color.Green("No such subscriber, Adding...\n")
+		insertSub, dberr := db.Prepare("INSERT Subscribers SET StreamID=?,Nick=?,MonthsInRow=?,MonthsTotal=?,Lastsub=?;")
+		if dberr != nil {
+			log.Fatalf("Cannot prepare insertSub on %s: %s\n", channel, dberr.Error())
+		}
+		defer insertSub.Close()
+		timeNow := time.Now().Format(time.RFC3339)
+		execSub, dberr := insertSub.Exec(chanId, name, months, months, timeNow)
+		if dberr != nil {
+			log.Fatalf("Cannot exec insertSub on %s: %s\n", channel, dberr.Error())
+		}
+		rowsAff, dberr := execSub.RowsAffected()
+		if dberr != nil {
+			log.Fatalf("No rows changed on %s: %s\n", channel, dberr.Error())
+		}
+		color.Green("Added Sub %s for %s months on %s, %d\n", name, months, channel, rowsAff)
+	case checkSub != nil:
+		log.Fatalf("Checking for subs failed, error: %s\n", checkSub.Error())
+	default:
+		updateSub, dberr := db.Prepare("UPDATE Subscribers SET MonthsInRow=?,MonthsTotal=?,Lastsub=? WHERE SubID=?;")
+		if dberr != nil {
+			log.Fatalf("Cannot prepare updateSub on %s: %s\n", channel, dberr.Error())
+		}
+		newTotal := monthsTotal + 1
+		timeNow := time.Now().Format(time.RFC3339)
+		execSubU, dberr := updateSub.Exec(months, newTotal, timeNow, subID)
+		if dberr != nil {
+			log.Fatalf("Cannot exec updateSub on %s: %s\n", channel, dberr.Error())
+		}
+		rowsAff, dberr := execSubU.RowsAffected()
+		if dberr != nil {
+			log.Fatalf("No rows changed on %s: %s\n", channel, dberr.Error())
+		}
+		color.Green("Updated sub %s for %s months and %d total months on %s, %d\n", name, months, newTotal, channel, rowsAff)
+	}
 }

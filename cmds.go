@@ -26,6 +26,22 @@ func CmdInterpreter(channel string, username string, usermessage string) {
 		msg := strings.Replace(usermessage, levelid, "", 1)
 		fmt.Printf("Triggered @ %s: %s and %s\n", channel, username, levelid)
 		writeLevelDB(channel, username, msg, levelid)
+	} else if username == "twitchnotify" && !strings.Contains(usermessage, "subscribed to") {
+		split := strings.Split(usermessage, " ")
+		var name string
+		var months string
+		if strings.HasSuffix(usermessage, "row!") {
+			name = split[0]
+			months = split[3]
+		} else if strings.HasSuffix(usermessage, "subscribed!") {
+			name = split[0]
+			months = "1"
+
+		}
+		if name != "" {
+			//fmt.Printf("%q %q\n", name, months)
+			writeSubs(channel, name, months)
+		}
 	} else if strings.Contains(usermessage, nick) || strings.Contains(usermessage, strings.ToLower(nick)) {
 		msg := strings.Replace(usermessage, nick, "", 1)
 		if msg != "" && lastchat+10 <= time.Now().Unix() {
@@ -49,7 +65,7 @@ func CmdInterpreter(channel string, username string, usermessage string) {
 			message := strings.Replace(usermessage, "!skip", "", 1)
 			Message(channel, doSkip(channel, message))
 		}
-	} else if strings.HasPrefix(usermessage, "!stats") {
+	} else if strings.HasPrefix(usermessage, "!mariostats") {
 		Message(channel, getStats(channel))
 	}
 }

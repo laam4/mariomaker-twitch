@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/fatih/color"
 	"github.com/vharitonsky/iniflags"
+	"log"
 	"net"
 	"net/textproto"
 	"os"
@@ -30,6 +31,7 @@ var (
 	channellist string
 	database    string
 	oauth       string
+	debug       bool
 	lastmsg     int64 = 0
 	maxMsgTime  int64 = 5
 	g_levelId   map[int]int
@@ -46,6 +48,7 @@ func init() {
 	flag.StringVar(&channellist, "channellist", "#botname", "Comma separated list of channel to join")
 	flag.StringVar(&database, "database", "username:password@protocol(address)/dbname?param=value", "MySQL Data Source Name")
 	flag.StringVar(&oauth, "oauth", "oauth:token", "OAuth token for login, https://twitchapps.com/tmi/")
+	flag.BoolVar(&debug, "debug", false, "If true prints all IRC messages from server as map")
 }
 
 func Connect() {
@@ -108,27 +111,20 @@ func fmtName(c string, name string, sub string, turbo string, utype string) stri
 	}
 	switch c {
 	case "#0000FF", "#5F9EA0":
-		p = p + " " + blue(name)
-		return p
+		name = blue(name)
 	case "#FF0000", "#B22222", "#FF7F50", "#CC0000":
-		p = p + " " + red(name)
-		return p
+		name = red(name)
 	case "#8A2BE2", "#FF69B4", "#FF6BB5":
-		p = p + " " + magenta(name)
-		return p
+		name = magenta(name)
 	case "#008000", "#00FF7F", "#2E8B57", "#9ACD32":
-		p = p + " " + green(name)
-		return p
+		name = green(name)
 	case "#DAA520", "#FF4500", "#D2691E", "#FFFF00":
-		p = p + " " + yellow(name)
-		return p
+		name = yellow(name)
 	case "#1E90FF", "#00FFFF":
-		p = p + " " + cyan(name)
-		return p
-	default:
-		p = p + " " + name
-		return p
+		name = cyan(name)
 	}
+	p = p + " " + name
+	return p
 }
 
 func main() {
@@ -180,10 +176,13 @@ func main() {
 			tags = parseTags(irc["tags"])
 			isTags = true
 		}
+		go logIRC(irc)
 		switch irc["command"] {
 		case "PING":
-			fmt.Fprintf(conn, "PONG %s\r\n", strings.Replace(irc["trailing"], ":", "", 1))
-			fmt.Printf(info("PONG\n"))
+			fmt.Fprintf(conn, "PONG %s\r\n", irc["trailing"])
+			if debug {
+				fmt.Printf(info("PONG\n"))
+			}
 		case "PRIVMSG":
 			if isTags {
 				username = tags["display-name"]
@@ -197,47 +196,71 @@ func main() {
 			go CmdInterpreter(irc["params"], username, msg)
 			//fmt.Printf("%q\n", irc)
 		default:
-			//fmt.Printf("%q\n", irc)
+			if debug {
+				fmt.Printf("%q\n", irc)
+			}
 		}
 	}
 }
 
-func parseIRC(line string) map[string]string {
-	split := strings.Split(line, " ")
-	part := 0
-	var key string
-	msg := make(map[string]string)
-	for i := range split {
-		if part == 4 {
-		} else if part == 0 && strings.HasPrefix(split[i], "@") {
-			key = "tags"
-		} else if part < 1 && strings.HasPrefix(split[i], ":") {
-			part = 1
-			key = "prefix"
-		} else if part < 2 {
-			part = 2
-			key = "command"
-		} else if part >= 2 && strings.HasPrefix(split[i], ":") {
-			part = 4
-			key = "trailing"
+func parseIRC(l string) map[string]string {
+	var k string
+	s := strings.Split(l, " ")
+	m := make(map[string]string)
+	for i := range s {
+		if k == "trailing" {
+		} else if k == "" && strings.HasPrefix(s[i], "@") {
+			k = "tags"
+		} else if k == "" && strings.HasPrefix(s[i], ":") || k == "tags" && strings.HasPrefix(s[i], ":") {
+			k = "prefix"
+		} else if k == "" || k == "tags" || k == "prefix" {
+			k = "command"
+		} else if k == "params" && strings.HasPrefix(s[i], ":") {
+			k = "trailing"
 		} else {
-			part = 3
-			key = "params"
+			k = "params"
 		}
-		if msg[key] != "" {
-			msg[key] = msg[key] + " "
+		if m[k] != "" {
+			m[k] = m[k] + " "
 		}
-		msg[key] = msg[key] + split[i]
+		m[k] = m[k] + s[i]
 	}
-	return msg
+	return m
 }
 
-func parseTags(line string) map[string]string {
-	split := strings.Split(line, ";")
-	tags := make(map[string]string)
-	for i := range split {
-		splat := strings.Split(split[i], "=")
-		tags[splat[0]] = splat[1]
+func parseTags(l string) map[string]string {
+	s := strings.Split(l, ";")
+	t := make(map[string]string)
+	for i := range s {
+		r := strings.SplitN(s[i], "=", 2)
+		t[r[0]] = r[1]
 	}
-	return tags
+	return t
+}
+
+func logIRC(irc map[string]string) {
+	if _, err := os.Stat("./logs"); err != nil {
+		if os.IsNotExist(err) {
+			color.Green("Creating directory logs")
+			os.Mkdir("./logs", 0766)
+		}
+	}
+	if strings.HasPrefix(irc["params"], "#") {
+		s := strings.Split(irc["params"], " ")
+		f, err := os.OpenFile("logs/"+s[0]+".log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Fatalf("Error opening logfile for %s: %v", irc["params"], err)
+		}
+		log.SetOutput(f)
+		log.Printf("%s %s %s %s\n", irc["prefix"], irc["command"], irc["params"], irc["trailing"])
+		defer f.Close()
+	} else {
+		f, err := os.OpenFile("logs/all.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Fatalf("Error opening logfile all: %v", err)
+		}
+		log.SetOutput(f)
+		log.Printf("%s %s %s %s %s\n", irc["tags"], irc["prefix"], irc["command"], irc["params"], irc["trailing"])
+		defer f.Close()
+	}
 }

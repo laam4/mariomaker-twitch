@@ -1,10 +1,3 @@
-/*body {
-    background-color: #FFD101;
-    background: #FFD101 url("/bg.png") repeat;
-    background-attachment: fixed;
-    font: normal normal normal .8em Verdana, Arial, Helvetica, sans-serif;
-}*/
-
 body {
 	font: normal normal normal .8em Verdana, Arial, Helvetica, sans-serif;
 }
@@ -12,18 +5,6 @@ body {
 html { 
   background: #6699ff url(/bg.png) no-repeat center center fixed; 
   background-size: cover;
-}
-
-h1, h2, h3, h4, h5, h6 {
-	font-weight: bold;
-}
-
-h1 {
-	font-size: 2.1em;
-}
-
-h3 {
-	font-size: 1.6em;
 }
 
 /* unvisited link */
@@ -72,11 +53,6 @@ th {
 	font-weight: bold;
 }
 
-td.label {
-	text-align: right;
-	font-weight: bold;
-}
-
 img.center {
     display: block;
     margin-left: auto;
@@ -86,26 +62,4 @@ img.center {
 form {
 	padding: 50px;
 	text-align: center;
-}
-
-label {
-	font-weight: bold;
-	text-align: right;
-}
-
-.warning, .error {
-	font-weight: bold;
-	color: #300;
-}
-
-.notice {
-	width: auto;
-	padding: 10px;
-	background: #ee0;
-}
-
-.read {
-	border: none;
-	background-color: #eee;
-	padding: 3px;
 }

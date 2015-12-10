@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>Super Mario Maker Levels</title>
-<link href="../mario.css" rel="stylesheet" type="text/css" />
-<link rel="shortcut icon" href="../favicon.ico" type="image/x-icon">
-<link rel="icon" href="../favicon.ico" type="image/x-icon">
+<link href="mario.css" rel="stylesheet" type="text/css" />
+<link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+<link rel="icon" href="favicon.ico" type="image/x-icon">
 </head>
 <img class="center" src="mario.png" alt="Mario" style="width:714px;height:559px;">
 <?php

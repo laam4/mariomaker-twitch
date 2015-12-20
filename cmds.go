@@ -16,7 +16,7 @@ var lastchat int64 = 0
 
 func CmdInterpreter(channel string, username string, usermessage string) {
 	//regexp we are using to find codes
-	reg := "([[:xdigit:]]{4})-0000-00([[:xdigit:]]{2})-([[:xdigit:]]{4})"
+	reg := "([[:xdigit:]]{4})-0000-([[:xdigit:]]{4})-([[:xdigit:]]{4})"
 	re := regexp.MustCompile(reg)
 	matched, _ := regexp.MatchString(reg, usermessage)
 

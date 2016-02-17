@@ -22,7 +22,12 @@ IRC code Based on https://github.com/Vaultpls/Twitch-IRC-Bot
 - Create database and user to MySQL
 - Edit `default.ini`
 - Type `go install github.com/laam4/mariomaker-twitch`
-- Run bot from your GOPATH/bin folder with -config parameter
+- Run bot from your GOPATH/bin folder with -config parameter using an absolute path for the ini file (e.g. `/home/user/gocode/bin/mariomaker-twitch -config /home/user/default.ini`)
+
+## Web site setup
+- Copy all of the files in the web folder to your web server
+- Edit the conf.php file and enter in the same mysql connection parameters used in the ini file
+- Verify that it works by navigating to index.php in the directory chosen in the first step
 
 ## TODO:
 - Code cleanup

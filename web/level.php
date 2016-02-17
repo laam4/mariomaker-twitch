@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>Super Mario Maker Levels</title>
-<link href="../mario.css" rel="stylesheet" type="text/css" />
+<link href="mario.css" rel="stylesheet" type="text/css" />
 </head>
-<p><a href="../index.php">Back to main menu</a></p>
+<p><a href="index.php">Back to main menu</a></p>
 <?php
 require 'conf.php';
 	function makeHeaderLink($value, $key, $col, $dir) {

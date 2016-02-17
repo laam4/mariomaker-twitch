@@ -5,17 +5,22 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/PuerkitoBio/goquery"
 	"github.com/fatih/color"
 	_ "github.com/go-sql-driver/mysql"
-	"io/ioutil"
+	"gopkg.in/matryer/try.v1"
 	"log"
+	"math/rand"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
 
 var db *sql.DB
 var dberr error
+var v map[string]interface{}
+var k int64
 
 func InitDB() {
 	db, dberr = sql.Open("mysql", database)
@@ -24,13 +29,13 @@ func InitDB() {
 	}
 	//[MySQL] packets.go:118: write unix /var/lib/mysql/mysql.sock: broken pipe
 	db.SetMaxIdleConns(0)
-	
+
 	//Create tables
 	_, dberr = db.Exec("CREATE TABLE IF NOT EXISTS Streamers ( StreamID MEDIUMINT NOT NULL, Name VARCHAR(25) NOT NULL UNIQUE, PRIMARY KEY (StreamID) ) ENGINE=MyISAM DEFAULT CHARSET=utf8;")
 	if dberr != nil {
 		log.Fatalf("Error on initializing table Streamers: %s", dberr.Error())
 	}
-	_, dberr = db.Exec("CREATE TABLE IF NOT EXISTS Levels ( LevelID MEDIUMINT NOT NULL AUTO_INCREMENT, StreamID MEDIUMINT NOT NULL, Nick VARCHAR(25) NOT NULL, Level VARCHAR(22) NOT NULL, Message VARCHAR(255) NOT NULL, Comment VARCHAR(255) NOT NULL, Played BOOLEAN NOT NULL, Skipped BOOLEAN NOT NULL, Added DATETIME NOT NULL, Passed DATETIME NOT NULL,PRIMARY KEY (LevelID) ) ENGINE=MyISAM DEFAULT CHARSET=utf8;")
+	_, dberr = db.Exec("CREATE TABLE IF NOT EXISTS Levels ( LevelID MEDIUMINT NOT NULL AUTO_INCREMENT, StreamID MEDIUMINT NOT NULL, Nick VARCHAR(25) NOT NULL, Level VARCHAR(22) NOT NULL, Message VARCHAR(255) NOT NULL, Comment VARCHAR(255) NOT NULL, Played BOOLEAN NOT NULL, Skipped BOOLEAN NOT NULL, Added DATETIME NOT NULL, Passed DATETIME NOT NULL, Removed BOOLEAN NOT NULL, Title VARCHAR(100) NOT NULL, Difficulty TINYINT NOT NULL, Style TINYINT NOT NULL, Creator VARCHAR(50) NOT NULL, Flag VARCHAR(2) NOT NULL, Created DATE NOT NULL, Tags VARCHAR(13) NOT NULL, Image VARCHAR(100) NOT NULL, ImageFull VARCHAR(100) NOT NULL, PRIMARY KEY (LevelID) ) ENGINE=MyISAM DEFAULT CHARSET=utf8;")
 	if dberr != nil {
 		log.Fatalf("Error on initializing table Levels: %s", dberr.Error())
 	}
@@ -75,38 +80,51 @@ func writeLevelDB(channel string, userName string, userMessage string, levelId s
 	chanId := channels[channel]
 	//Check for duplicate LevelId for this channel
 	var duplicateLevel string
-	checkDuplicate := db.QueryRow("SELECT Level FROM Levels WHERE Level=? AND StreamID=?;", levelId, chanId).Scan(&duplicateLevel)
-	switch {
-	case checkDuplicate == sql.ErrNoRows:
-		color.Green("No such level, Adding...\n")
-		insertLevel, dberr := db.Prepare("INSERT Levels SET StreamID=?,Nick=?,Level=?,Message=?,Added=?;")
-		if dberr != nil {
-			log.Fatalf("Cannot prepare insertLevel on %s: %s\n", channel, dberr.Error())
+	var info map[string]string
+	var exist bool
+	info = make(map[string]string)
+	err := try.Do(func(attempt int) (bool, error) {
+		var err error
+		info, exist, err = fetchInfo(levelId)
+		return attempt < 5, err // try 5 times
+	})
+	if err != nil {
+		log.Println("Error: " + err.Error())
+	} else if exist {
+		checkDuplicate := db.QueryRow("SELECT Level FROM Levels WHERE Level=? AND StreamID=?;", levelId, chanId).Scan(&duplicateLevel)
+		switch {
+		case checkDuplicate == sql.ErrNoRows:
+			color.Green("No such level, Adding...\n")
+			insertLevel, dberr := db.Prepare("INSERT Levels SET StreamID=?,Nick=?,Level=?,Message=?,Added=?,Removed=?,Title=?,Difficulty=?,Style=?,Creator=?,Flag=?,Created=?,Tags=?,Image=?,ImageFull=?;")
+			if dberr != nil {
+				log.Fatalf("Cannot prepare insertLevel on %s: %s\n", channel, dberr.Error())
+			}
+			defer insertLevel.Close()
+			timeNow := time.Now().Format(time.RFC3339)
+			execLevel, dberr := insertLevel.Exec(chanId, userName, levelId, userMessage, timeNow, 0, info["title"], info["diff"], info["style"], info["name"], info["flag"], info["created"], info["tags"], info["img"], info["imgfull"])
+			if dberr != nil {
+				log.Fatalf("Cannot exec insertLevel on %s: %s\n", channel, dberr.Error())
+			}
+			rowsAff, dberr := execLevel.RowsAffected()
+			if dberr != nil {
+				log.Fatalf("No rows changed on %s: %s\n", channel, dberr.Error())
+			}
+			lastId, dberr := execLevel.LastInsertId()
+			if dberr != nil {
+				log.Fatalf("No last id on %s: %s\n", channel, dberr.Error())
+			}
+			color.Green("Added level %s by %s for %d %s. Row|#: %d|%d\n", levelId, userName, chanId, channel, rowsAff, lastId)
+		case checkDuplicate != nil:
+			log.Fatalf("Checking duplicate level failed, error: %s\n", checkDuplicate.Error())
+		default:
+			color.Yellow("Duplicate level, not adding...\n")
 		}
-		defer insertLevel.Close()
-		timeNow := time.Now().Format(time.RFC3339)
-		execLevel, dberr := insertLevel.Exec(chanId, userName, levelId, userMessage, timeNow)
-		if dberr != nil {
-			log.Fatalf("Cannot exec insertLevel on %s: %s\n", channel, dberr.Error())
-		}
-		rowsAff, dberr := execLevel.RowsAffected()
-		if dberr != nil {
-			log.Fatalf("No rows changed on %s: %s\n", channel, dberr.Error())
-		}
-		lastId, dberr := execLevel.LastInsertId()
-		if dberr != nil {
-			log.Fatalf("No last id on %s: %s\n", channel, dberr.Error())
-		}
-		color.Green("Added level %s by %s for %d %s. Row|#: %d|%d\n", levelId, userName, chanId, channel, rowsAff, lastId)
-	case checkDuplicate != nil:
-		log.Fatalf("Checking duplicate level failed, error: %s\n", checkDuplicate.Error())
-	default:
-		color.Yellow("Duplicate level, not adding...\n")
+	} else {
+		color.Yellow("Level doesn't exist...\n")
 	}
 }
 
-func getLevel(streamer bool, channel string, comment string) string {
-	var result string
+func getLevel(streamer bool, channel string, comment string) (result string) {
 	var online bool
 	chanId := channels[channel]
 	//Choose new random level if streamer, else get last random level
@@ -118,8 +136,14 @@ func getLevel(streamer bool, channel string, comment string) string {
 		var userName string
 		var level string
 		var message string
-		var added string
-		getrLevel, dberr := db.Query("SELECT LevelID,Nick,Level,Message,Added FROM Levels WHERE Played=0 AND StreamID=? ORDER BY RAND() LIMIT 10;", chanId)
+		var title string
+		var diff int
+		var style int
+		var creator string
+		var flag string
+		var removed int
+		var tags string
+		getrLevel, dberr := db.Query("SELECT LevelID,Nick,Level,Message,Removed,Title,Difficulty,Style,Creator,Flag,Tags FROM Levels WHERE Played=0 AND StreamID=? ORDER BY RAND() LIMIT 100;", chanId)
 		if dberr == sql.ErrNoRows {
 			return "No unplayed levels in database"
 		}
@@ -127,9 +151,22 @@ func getLevel(streamer bool, channel string, comment string) string {
 			log.Fatalf("Cannot get random level: %s\n", dberr.Error())
 		}
 		for getrLevel.Next() {
-			dberr = getrLevel.Scan(&levelId, &userName, &level, &message, &added)
+			dberr = getrLevel.Scan(&levelId, &userName, &level, &message, &removed, &title, &diff, &style, &creator, &flag, &tags)
 			fmt.Printf("#%d %s by %s | ", levelId, level, userName)
-			if isWatching(channel, userName) {
+			if removed == 1 {
+				color.Red("Removed level, skipping")
+				continue
+			}
+			var o bool
+			err := try.Do(func(attempt int) (bool, error) {
+				var err error
+				o, err = isWatching(channel, userName)
+				return attempt < 5, err // try 5 times
+			})
+			if err != nil {
+				log.Println("Try error:", err)
+			}
+			if o {
 				g_levelId[chanId] = levelId
 				g_userName[chanId] = userName
 				g_level[chanId] = level
@@ -143,7 +180,7 @@ func getLevel(streamer bool, channel string, comment string) string {
 		defer getrLevel.Close()
 		if getrLevel.Next() == false && online == false {
 			//color.Red("No online level, RIP\n")
-			return "No submitters online for 10 random levels, try again"
+			return "No submitters online for 100 random levels, try again"
 		}
 		updatePlayed, dberr := db.Prepare("UPDATE Levels SET Played=1,Passed=? WHERE LevelID=?;")
 		if dberr != nil {
@@ -159,9 +196,12 @@ func getLevel(streamer bool, channel string, comment string) string {
 			log.Fatalf("No rows changed on %s: %s\n", channel, dberr.Error())
 		}
 		fmt.Printf("Updated played=true for level %d, rows %d\n", g_levelId[chanId], rowsAff)
-		chanName := strings.Replace(channel, "#", "@", 1)
+		chanName := strings.Replace(channel, "#", "", 1)
 		msg := strings.Replace(message, "%", "%%", -1)
-		result = fmt.Sprintf("%s: %s by %s | #%d[%s] %s", chanName, g_level[chanId], g_userName[chanId], g_levelId[chanId], added, msg)
+		if tags != "" {
+			tags = "|"+tags
+		}
+		result = fmt.Sprintf("%s: %s | %s [%s|%s%s] by %s [%s] | <%s> %s", chanName, g_level[chanId], title, getDifficulty(diff), getStyle(style), tags, creator, flag, g_userName[chanId], msg)
 	} else {
 		if g_level[chanId] == "" {
 			return "Level not selected BibleThump"
@@ -170,7 +210,39 @@ func getLevel(streamer bool, channel string, comment string) string {
 			//return result
 		}
 	}
-	return result
+	return
+}
+
+func getDifficulty(diff int) (t string) {
+	switch diff {
+	case 0:
+		t = "N/A"
+	case 1:
+		t = "Easy"
+	case 2:
+		t = "Normal"
+	case 3:
+		t = "Expert"
+	case 4:
+		t = "Super Expert"
+	}
+	return
+}
+
+func getStyle(style int) (t string) {
+	switch style {
+	case 0:
+		t = "N/A"
+	case 1:
+		t = "SMB"
+	case 2:
+		t = "SMB3"
+	case 3:
+		t = "SMW"
+	case 4:
+		t = "NSMBU"
+	}
+	return
 }
 
 func doReroll(channel string) string {
@@ -208,9 +280,6 @@ func doSkip(channel string, comment string) string {
 	} else {
 		//Save old levelId and get new level before setting Played back to false
 		oldLevelId := g_levelId[chanId]
-		//if comment != "" {
-		//	doComment(comment, oldLevelId)
-		//}
 		result := getLevel(true, channel, comment)
 		skipPlayed, dberr := db.Prepare("UPDATE Levels SET Skipped=1 WHERE LevelID=?;")
 		if dberr != nil {
@@ -269,43 +338,52 @@ func getStats(channel string) string {
 	return result
 }
 
-func isWatching(channel string, name string) bool {
+func isWatching(channel string, name string) (bool, error) {
 	chanName := strings.Replace(channel, "#", "", 1)
-	url := "http://tmi.twitch.tv/group/user/" + chanName + "/chatters"
-	response, err := http.Get(url)
-	if err != nil {
-		log.Fatalf("Cannot get URL response: %s\n", err.Error())
+	if k+60 <= time.Now().Unix() {
+		var err error
+		url := "http://tmi.twitch.tv/group/user/" + chanName + "/chatters"
+		response, err := http.Get(url)
+		if err != nil {
+			log.Printf("Cannot get URL response: %s\n", err.Error())
+			return false, err
+		}
+		defer response.Body.Close()
+		dec := json.NewDecoder(response.Body)
+		if err := dec.Decode(&v); err != nil {
+			log.Printf("Parse error: %s\n", err.Error())
+			return false, err
+		}
+		k = time.Now().Unix()
+		color.Yellow("Updating chatters")
 	}
-	defer response.Body.Close()
-	data, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		log.Fatalf("Cannot read URL response: %s\n", err.Error())
-	}
-	var parsed map[string]interface{}
-	p := json.Unmarshal(data, &parsed)
-	if p != nil {
-		log.Fatalf("Parse error: %s\n", err.Error())
-	}
-	chats := parsed["chatters"].(map[string]interface{})
+	//fmt.Printf("%q\n", v)
+	chats := v["chatters"].(map[string]interface{})
 	views := chats["viewers"].([]interface{})
 	mods := chats["moderators"].([]interface{})
 	for _, b := range views {
 		if b == strings.ToLower(name) {
-			return true
+			return true, nil
 		}
 	}
 	for _, b := range mods {
 		if b == strings.ToLower(name) {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 func writeSubs(channel string, name string, months string) {
 	chanId := channels[channel]
+	emote := map[int]string{0: "4Head", 1: "bleedPurple", 2: "BloodTrail", 3: "CoolCat", 4: "CorgiDerp", 5: "duDudu", 6: "EleGiggle", 7: "KAPOW", 8: "Kreygasm", 9: "OSsloth", 10: "PogChamp"}
 	var monthsTotal int
+	var newTotal int
 	var subID int
+	monthsInt, err := strconv.Atoi(months)
+	if err != nil {
+		log.Fatalf("Error converting months to monthsInt: %s", err.Error())
+	}
 	checkSub := db.QueryRow("SELECT SubID,MonthsTotal FROM Subscribers WHERE Nick=? AND StreamID=?;", name, chanId).Scan(&subID, &monthsTotal)
 	switch {
 	case checkSub == sql.ErrNoRows:
@@ -325,6 +403,16 @@ func writeSubs(channel string, name string, months string) {
 			log.Fatalf("No rows changed on %s: %s\n", channel, dberr.Error())
 		}
 		color.Green("Added Sub %s for %s months on %s, %d\n", name, months, channel, rowsAff)
+		if channel == "#retku" {
+			var msg string
+			k := getSubs(chanId)
+			if monthsInt == 1 {
+				msg = fmt.Sprintf("Tervetuloa Retkueeseen %s %s Päivän %d. subi!", name, GetRand(emote), k)
+			} else {
+				msg = fmt.Sprintf("%s kuukautta putkeen Retkueessa %s %s Päivän %d. subi!", months, name, GetRand(emote), k)
+			}
+			Message(channel, msg)
+		}
 	case checkSub != nil:
 		log.Fatalf("Checking for subs failed, error: %s\n", checkSub.Error())
 	default:
@@ -332,7 +420,11 @@ func writeSubs(channel string, name string, months string) {
 		if dberr != nil {
 			log.Fatalf("Cannot prepare updateSub on %s: %s\n", channel, dberr.Error())
 		}
-		newTotal := monthsTotal + 1
+		if monthsInt > monthsTotal+1 {
+			newTotal = monthsInt
+		} else {
+			newTotal = monthsTotal + 1
+		}
 		timeNow := time.Now().Format(time.RFC3339)
 		execSubU, dberr := updateSub.Exec(months, newTotal, timeNow, subID)
 		if dberr != nil {
@@ -343,5 +435,149 @@ func writeSubs(channel string, name string, months string) {
 			log.Fatalf("No rows changed on %s: %s\n", channel, dberr.Error())
 		}
 		color.Green("Updated sub %s for %s months and %d total months on %s, %d\n", name, months, newTotal, channel, rowsAff)
+		if channel == "#retku" {
+			var msg string
+			k := getSubs(chanId)
+			if monthsInt == 1 {
+				msg = fmt.Sprintf("Tervetuloa takaisin Retkueeseen %s %s , laskujeni mukaan yhteensä %d kuukautta Retkueessa! Päivän %d. subi!", name, GetRand(emote), newTotal, k)
+			} else {
+				msg = fmt.Sprintf("%s kuukautta putkeen Retkueessa %s %s Päivän %d. subi!", months, name, GetRand(emote), k)
+				//tarkasta onko months ja total sama
+			}
+			Message(channel, msg)
+		}
 	}
+}
+
+func getSubs(chanId int) int {
+	var i int
+	subToday := db.QueryRow("SELECT count(*) FROM Subscribers WHERE StreamID=? AND Lastsub>=CURDATE();", chanId).Scan(&i)
+	if subToday != nil {
+		log.Fatalf("Cannot count subs: %s", subToday.Error())
+	}
+	return i
+}
+
+func GetRand(a map[int]string) string {
+	// produce a pseudo-random number between 0 and len(a)-1
+	i := int(float32(len(a)) * rand.Float32())
+	for _, v := range a {
+		if i == 0 {
+			return v
+		} else {
+			i--
+		}
+	}
+	panic("impossible")
+}
+
+//Fetch information from level
+func fetchInfo(levelID string) (info map[string]string, exist bool, err error) {
+	info = make(map[string]string)
+	url := "https://supermariomakerbookmark.nintendo.net/courses/" + strings.ToUpper(levelID)
+	r, err := goquery.NewDocument(url)
+	if err != nil {
+		log.Printf("Cannot get URL response: %s\n", err.Error())
+		return
+	}
+	//This should work for now, maybe later check the http header for errorcodes
+	ecode := typography(r, ".error-code")
+	switch ecode {
+	case "404":
+		fmt.Printf("%s: Not found\n", ecode)
+		exist = false
+	case "500", "502":
+		fmt.Printf("%s: Server error\n", ecode)
+		err = fmt.Errorf("%s: Server error\n", ecode)
+	default:
+		info["title"] = r.Find(".course-title").Text()
+		info["diff"] = strings.TrimSpace(r.Find(".course-header").Text())
+		if len(info["diff"]) == 0 {
+			info["diff"] = "0"
+			info["clear"] = ""
+			info["cleartimef"] = ""
+		} else {
+			switch info["diff"] {
+			case "Easy":
+				info["diff"] = "1"
+			case "Normal":
+				info["diff"] = "2"
+			case "Expert":
+				info["diff"] = "3"
+			case "Super Expert":
+				info["diff"] = "4"
+			}
+			info["clear"] = typography(r, ".clear-rate")
+			info["cleartime"] = typography(r, ".clear-time")
+		}
+		gameskin, _ := r.Find(".gameskin").Attr("class")
+		switch gameskin {
+		case "gameskin bg-image common_gs_sb":
+			info["style"] = "1"
+		case "gameskin bg-image common_gs_sb3":
+			info["style"] = "2"
+		case "gameskin bg-image common_gs_sw":
+			info["style"] = "3"
+		case "gameskin bg-image common_gs_sbu":
+			info["style"] = "4"
+		}
+		c := r.Find(".created_at").Text()
+		if strings.Contains(c, "ago") == true {
+			s := strings.Split(c, " ")
+			cr, err := strconv.Atoi(s[0])
+			if err != nil {
+				log.Printf(err.Error())
+			}
+			switch s[1] {
+			case "hour", "hours":
+				info["created"] = time.Now().Add(time.Duration(-cr) * time.Hour).Format(time.RFC3339)
+			case "day", "days":
+				info["created"] = time.Now().AddDate(0, 0, -cr).Format(time.RFC3339)
+			}
+		} else {
+			parsed, err := time.Parse("01/02/2006", c)
+			if err != nil {
+				log.Printf(err.Error())
+			}
+			info["created"] = parsed.Format(time.RFC3339)
+		}
+
+		info["liked"] = typography(r, ".liked-count")
+		info["played"] = typography(r, ".played-count")
+		info["shared"] = typography(r, ".shared-count")
+		info["tried"] = typography(r, ".tried-count")
+		info["tags"] = r.Find(".course-meta-info .course-tag").Text()
+		if info["tags"] == "---" {
+			info["tags"] = ""
+		}
+		flagRaw, _ := r.Find(".flag").Attr("class")
+		info["flag"] = strings.Replace(flagRaw, "flag ", "", 1)
+		info["name"] = r.Find(".creator-info .name").Text()
+		info["img"], _ = r.Find("img.course-image").Attr("src")
+		info["imgfull"], _ = r.Find(".course-image-full").Attr("src")
+
+		//info = fmt.Sprintf("%s [%s|%s] by %s [%s], Created: %s, Tags: %s, Clear: %s (%s) WR|%s, Likes|Played|Shared: %s|%s|%s, Images: %s %s", course, diff, style, name, flag, created, tags, clear, tried, cleartime, liked, played, shared, image, imagefull)
+		exist = true
+	}
+	return info, exist, err
+}
+
+//Convert typography classes to numberstring
+func typography(r *goquery.Document, class string) (numbers string) {
+	r.Find(class + " .typography").Each(func(i int, s *goquery.Selection) {
+		typo, _ := s.Attr("class")
+		number := strings.Replace(typo, "typography typography-", "", 1)
+		switch number {
+		case "second":
+			number = "."
+		case "percent":
+			number = "%"
+		case "slash":
+			number = "/"
+		case "minute":
+			number = ":"
+		}
+		numbers = numbers + number
+	})
+	return
 }

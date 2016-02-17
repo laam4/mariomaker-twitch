@@ -7,6 +7,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/vharitonsky/iniflags"
 	"log"
+	"math/rand"
 	"net"
 	"net/textproto"
 	"os"
@@ -49,6 +50,7 @@ func init() {
 	flag.StringVar(&database, "database", "username:password@protocol(address)/dbname?param=value", "MySQL Data Source Name")
 	flag.StringVar(&oauth, "oauth", "oauth:token", "OAuth token for login, https://twitchapps.com/tmi/")
 	flag.BoolVar(&debug, "debug", false, "If true prints all IRC messages from server as map")
+	rand.Seed(time.Now().UnixNano())
 }
 
 func Connect() {
@@ -137,9 +139,7 @@ func main() {
 	g_level = make(map[int]string)
 	splitchannel := strings.Split(channellist, ",")
 	for i := range splitchannel {
-		b := i
-		b++
-		channels[splitchannel[i]] = b
+		channels[splitchannel[i]] = i + 1
 	}
 	fmt.Fprintf(conn, "USER %s 8 * :%s\r\n", nick, nick)
 	fmt.Fprintf(conn, "PASS %s\r\n", oauth)

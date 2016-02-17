@@ -1,5 +1,4 @@
 # Super Mario Maker twitch bot
-[![Build Status](https://travis-ci.org/laam4/mariomaker-twitch.svg?branch=master)](https://travis-ci.org/laam4/mariomaker-twitch)
 
 Twitch bot written in golang which collects Super Mario Maker level codes and adds them to MySQL database.
 
@@ -14,15 +13,23 @@ IRC code Based on https://github.com/Vaultpls/Twitch-IRC-Bot
 - `!level` and `!skip` commands supports optional [comment] parameter, which affects the currently chosen level.
 - Multichannel support and Website support
 - Checks if the level submitter is watching the stream!
+- Check if the levelcode is valid from nintendo and adds only valid codes
+- Fetches level information from nintendo (title, creator, difficulty, style, etc.)
 
 ## Install
 - Go to your go project folder
-- Get dependencies `go get github.com/go-sql-driver/mysql` `go get github.com/fatih/color` `go get github.com/vharitonsky/iniflags`
+- Get dependencies `go get github.com/go-sql-driver/mysql` `go get github.com/fatih/color` `go get github.com/vharitonsky/iniflags` `go get github.com/PuerkitoBio/goquery` `go get gopkg.in/matryer/try.v1`
 - Get twitch bot `go get github.com/laam4/mariomaker-twitch`
 - Create database and user to MySQL
 - Edit `default.ini`
 - Type `go install github.com/laam4/mariomaker-twitch`
 - Run bot from your GOPATH/bin folder with -config parameter using an absolute path for the ini file (e.g. `/home/user/gocode/bin/mariomaker-twitch -config /home/user/default.ini`)
+
+## Update
+- Latest commit has new columns for database and script for adding those and updating all rows
+- BACKUP YOUR DATABASE
+- Edit the updatedb.go to have database information
+- `go run updatedb.go`
 
 ## Web site setup
 - Copy all of the files in the web folder to your web server

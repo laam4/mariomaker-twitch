@@ -22,6 +22,7 @@ var dberr error
 var v map[string]interface{}
 var k int64
 
+//InitDB initializes mysql connection and creates tables if those doesn't exist, adds joined channels to Streamers table and assign the StreamerID
 func InitDB() {
 	db, dberr = sql.Open("mysql", database)
 	if dberr != nil {
@@ -62,11 +63,11 @@ func InitDB() {
 			if dberr != nil {
 				log.Fatalf("Cannot add streamer %s, error: %s\n", chanName, dberr.Error())
 			}
-			lastId, dberr := execStream.LastInsertId()
+			lastID, dberr := execStream.LastInsertId()
 			if dberr != nil {
-				log.Fatalf("Last id error with streamer %s, error: %s\n", chanName, dberr.Error())
+				log.Fatalf("LastID error with streamer %s, error: %s\n", chanName, dberr.Error())
 			}
-			color.Green("New streamId for %s is #%d, ID = %d\n", k, i, lastId)
+			color.Green("New streamID for %s is #%d, ID = %d\n", k, i, lastID)
 		case checkStream != nil:
 			log.Fatalf("Database query to Streamers table error: %s\n", checkStream.Error())
 		default:
@@ -76,8 +77,8 @@ func InitDB() {
 	fmt.Printf("\n")
 }
 
-func writeLevelDB(channel string, userName string, userMessage string, levelId string) {
-	chanId := channels[channel]
+func writeLevelDB(channel string, userName string, userMessage string, levelID string) {
+	chanID := channels[channel]
 	//Check for duplicate LevelId for this channel
 	var duplicateLevel string
 	var info map[string]string
@@ -85,13 +86,13 @@ func writeLevelDB(channel string, userName string, userMessage string, levelId s
 	info = make(map[string]string)
 	err := try.Do(func(attempt int) (bool, error) {
 		var err error
-		info, exist, err = fetchInfo(levelId)
+		info, exist, err = fetchInfo(levelID)
 		return attempt < 5, err // try 5 times
 	})
 	if err != nil {
 		log.Println("Error: " + err.Error())
 	} else if exist {
-		checkDuplicate := db.QueryRow("SELECT Level FROM Levels WHERE Level=? AND StreamID=?;", levelId, chanId).Scan(&duplicateLevel)
+		checkDuplicate := db.QueryRow("SELECT Level FROM Levels WHERE Level=? AND StreamID=?;", levelID, chanID).Scan(&duplicateLevel)
 		switch {
 		case checkDuplicate == sql.ErrNoRows:
 			color.Green("No such level, Adding...\n")
@@ -101,7 +102,7 @@ func writeLevelDB(channel string, userName string, userMessage string, levelId s
 			}
 			defer insertLevel.Close()
 			timeNow := time.Now().Format(time.RFC3339)
-			execLevel, dberr := insertLevel.Exec(chanId, userName, levelId, userMessage, timeNow, 0, info["title"], info["diff"], info["style"], info["name"], info["flag"], info["created"], info["tags"], info["img"], info["imgfull"])
+			execLevel, dberr := insertLevel.Exec(chanID, userName, levelID, userMessage, timeNow, 0, info["title"], info["diff"], info["style"], info["name"], info["flag"], info["created"], info["tags"], info["img"], info["imgfull"])
 			if dberr != nil {
 				log.Fatalf("Cannot exec insertLevel on %s: %s\n", channel, dberr.Error())
 			}
@@ -109,11 +110,11 @@ func writeLevelDB(channel string, userName string, userMessage string, levelId s
 			if dberr != nil {
 				log.Fatalf("No rows changed on %s: %s\n", channel, dberr.Error())
 			}
-			lastId, dberr := execLevel.LastInsertId()
+			lastID, dberr := execLevel.LastInsertId()
 			if dberr != nil {
-				log.Fatalf("No last id on %s: %s\n", channel, dberr.Error())
+				log.Fatalf("No lastID on %s: %s\n", channel, dberr.Error())
 			}
-			color.Green("Added level %s by %s for %d %s. Row|#: %d|%d\n", levelId, userName, chanId, channel, rowsAff, lastId)
+			color.Green("Added level %s by %s for %d %s. Row|#: %d|%d\n", levelID, userName, chanID, channel, rowsAff, lastID)
 		case checkDuplicate != nil:
 			log.Fatalf("Checking duplicate level failed, error: %s\n", checkDuplicate.Error())
 		default:
@@ -126,13 +127,13 @@ func writeLevelDB(channel string, userName string, userMessage string, levelId s
 
 func getLevel(streamer bool, channel string, comment string) (result string) {
 	var online bool
-	chanId := channels[channel]
+	chanID := channels[channel]
 	//Choose new random level if streamer, else get last random level
 	if streamer {
-		if g_levelId[chanId] != 0 && comment != "" {
-			doComment(comment, g_levelId[chanId])
+		if gLevelID[chanID] != 0 && comment != "" {
+			doComment(comment, gLevelID[chanID])
 		}
-		var levelId int
+		var levelID int
 		var userName string
 		var level string
 		var message string
@@ -143,7 +144,7 @@ func getLevel(streamer bool, channel string, comment string) (result string) {
 		var flag string
 		var removed int
 		var tags string
-		getrLevel, dberr := db.Query("SELECT LevelID,Nick,Level,Message,Removed,Title,Difficulty,Style,Creator,Flag,Tags FROM Levels WHERE Played=0 AND StreamID=? ORDER BY RAND() LIMIT 100;", chanId)
+		getrLevel, dberr := db.Query("SELECT LevelID,Nick,Level,Message,Removed,Title,Difficulty,Style,Creator,Flag,Tags FROM Levels WHERE Played=0 AND StreamID=? ORDER BY RAND() LIMIT 100;", chanID)
 		if dberr == sql.ErrNoRows {
 			return "No unplayed levels in database"
 		}
@@ -151,8 +152,8 @@ func getLevel(streamer bool, channel string, comment string) (result string) {
 			log.Fatalf("Cannot get random level: %s\n", dberr.Error())
 		}
 		for getrLevel.Next() {
-			dberr = getrLevel.Scan(&levelId, &userName, &level, &message, &removed, &title, &diff, &style, &creator, &flag, &tags)
-			fmt.Printf("#%d %s by %s | ", levelId, level, userName)
+			dberr = getrLevel.Scan(&levelID, &userName, &level, &message, &removed, &title, &diff, &style, &creator, &flag, &tags)
+			fmt.Printf("#%d %s by %s | ", levelID, level, userName)
 			if removed == 1 {
 				color.Red("Removed level, skipping")
 				continue
@@ -167,9 +168,9 @@ func getLevel(streamer bool, channel string, comment string) (result string) {
 				log.Println("Try error:", err)
 			}
 			if o {
-				g_levelId[chanId] = levelId
-				g_userName[chanId] = userName
-				g_level[chanId] = level
+				gLevelID[chanID] = levelID
+				gUserName[chanID] = userName
+				gLevel[chanID] = level
 				color.Green("Online\n")
 				online = true
 				break
@@ -180,14 +181,14 @@ func getLevel(streamer bool, channel string, comment string) (result string) {
 		defer getrLevel.Close()
 		if getrLevel.Next() == false && online == false {
 			//color.Red("No online level, RIP\n")
-			return "No submitters online for 100 random levels, try again"
+			return "No unplayed levels or online submitters, try again"
 		}
 		updatePlayed, dberr := db.Prepare("UPDATE Levels SET Played=1,Passed=? WHERE LevelID=?;")
 		if dberr != nil {
 			log.Fatalf("Cannot prepare updatePlayed on %s: %s\n", channel, dberr.Error())
 		}
 		timeNow := time.Now().Format(time.RFC3339)
-		execPlayed, dberr := updatePlayed.Exec(timeNow, g_levelId[chanId])
+		execPlayed, dberr := updatePlayed.Exec(timeNow, gLevelID[chanID])
 		if dberr != nil {
 			log.Fatalf("Cannot exec updatePlayed on %s: %s\n", channel, dberr.Error())
 		}
@@ -195,18 +196,18 @@ func getLevel(streamer bool, channel string, comment string) (result string) {
 		if dberr != nil {
 			log.Fatalf("No rows changed on %s: %s\n", channel, dberr.Error())
 		}
-		fmt.Printf("Updated played=true for level %d, rows %d\n", g_levelId[chanId], rowsAff)
+		fmt.Printf("Updated played=true for level %d, rows %d\n", gLevelID[chanID], rowsAff)
 		chanName := strings.Replace(channel, "#", "", 1)
 		msg := strings.Replace(message, "%", "%%", -1)
 		if tags != "" {
 			tags = "|"+tags
 		}
-		result = fmt.Sprintf("%s: %s | %s [%s|%s%s] by %s [%s] | <%s> %s", chanName, g_level[chanId], title, getDifficulty(diff), getStyle(style), tags, creator, flag, g_userName[chanId], msg)
+		result = fmt.Sprintf("%s: %s | %s [%s|%s%s] by %s [%s] | <%s> %s", chanName, gLevel[chanID], title, getDifficulty(diff), getStyle(style), tags, creator, flag, gUserName[chanID], msg)
 	} else {
-		if g_level[chanId] == "" {
-			return "Level not selected BibleThump"
+		if gLevel[chanID] == "" {
+			result = "Level not selected BibleThump"
 		} else {
-			result = fmt.Sprintf("Last played level #%d: %s by %s", g_levelId[chanId], g_level[chanId], g_userName[chanId])
+			result = fmt.Sprintf("Last played level #%d: %s by %s", gLevelID[chanID], gLevel[chanID], gUserName[chanID])
 			//return result
 		}
 	}
@@ -246,19 +247,19 @@ func getStyle(style int) (t string) {
 }
 
 func doReroll(channel string) string {
-
-	chanId := channels[channel]
-	if g_level[chanId] == "" {
-		return "Cannot reroll without level Kappa"
+	var result string
+	chanID := channels[channel]
+	if gLevel[chanID] == "" {
+		result = "Cannot reroll without level Kappa"
 	} else {
 		//Save old levelId and get new level before setting Played back to false
-		oldLevelId := g_levelId[chanId]
-		result := getLevel(true, channel, "")
+		oldLevelID := gLevelID[chanID]
+		result = getLevel(true, channel, "")
 		rerollPlayed, dberr := db.Prepare("UPDATE Levels SET Played=0,Passed='0000-00-00 00:00:00' WHERE LevelID=?;")
 		if dberr != nil {
 			log.Fatalf("Cannot revert rerollPlayed on %s: %s\n", channel, dberr.Error())
 		}
-		execrPlayed, dberr := rerollPlayed.Exec(oldLevelId)
+		execrPlayed, dberr := rerollPlayed.Exec(oldLevelID)
 		if dberr != nil {
 			log.Fatalf("Cannot exec rerollPlayed on %s: %s\n", channel, dberr.Error())
 		}
@@ -266,26 +267,25 @@ func doReroll(channel string) string {
 		if dberr != nil {
 			log.Fatalf("No rows changed on %s: %s\n", channel, dberr.Error())
 		}
-		fmt.Printf("Updated played=false for level %d , rows affected %d\n", oldLevelId, rowsAff)
-		return result
+		fmt.Printf("Updated played=false for level %d , rows affected %d\n", oldLevelID, rowsAff)
 	}
-	return "Kappa"
+	return result
 }
 
 func doSkip(channel string, comment string) string {
-
-	chanId := channels[channel]
-	if g_level[chanId] == "" {
-		return "Cannot skip without level Kappa"
+	var result string
+	chanID := channels[channel]
+	if gLevel[chanID] == "" {
+		result = "Cannot skip without level Kappa"
 	} else {
 		//Save old levelId and get new level before setting Played back to false
-		oldLevelId := g_levelId[chanId]
-		result := getLevel(true, channel, comment)
+		oldLevelID := gLevelID[chanID]
+		result = getLevel(true, channel, comment)
 		skipPlayed, dberr := db.Prepare("UPDATE Levels SET Skipped=1 WHERE LevelID=?;")
 		if dberr != nil {
 			log.Fatalf("Cannot skip skipPlayed on %s: %s\n", channel, dberr.Error())
 		}
-		execPlayed, dberr := skipPlayed.Exec(oldLevelId)
+		execPlayed, dberr := skipPlayed.Exec(oldLevelID)
 		if dberr != nil {
 			log.Fatalf("Cannot exec skipPlayed on %s: %s\n", channel, dberr.Error())
 		}
@@ -293,44 +293,43 @@ func doSkip(channel string, comment string) string {
 		if dberr != nil {
 			log.Fatalf("No rows changed on %s: %s\n", channel, dberr.Error())
 		}
-		fmt.Printf("Updated skipped=true for level %d , rows affected %d\n", oldLevelId, rowsAff)
-		return result
+		fmt.Printf("Updated skipped=true for level %d , rows affected %d\n", oldLevelID, rowsAff)
 	}
-	return "Kappa"
+	return result
 }
 
-func doComment(comment string, levelid int) {
+func doComment(comment string, levelID int) {
 	addComment, dberr := db.Prepare("UPDATE Levels SET Comment=? WHERE LevelID=?;")
 	if dberr != nil {
-		log.Fatalf("Cannot add comment on %s: %s\n", levelid, dberr.Error())
+		log.Fatalf("Cannot add comment on %d: %s\n", levelID, dberr.Error())
 	}
-	execComment, dberr := addComment.Exec(comment, levelid)
+	execComment, dberr := addComment.Exec(comment, levelID)
 	if dberr != nil {
-		log.Fatalf("Cannot exec addComment on %s: %s\n", levelid, dberr.Error())
+		log.Fatalf("Cannot exec addComment on %d: %s\n", levelID, dberr.Error())
 	}
 	rowsAff, dberr := execComment.RowsAffected()
 	if dberr != nil {
-		log.Fatalf("No rows changed on %s: %s\n", levelid, dberr.Error())
+		log.Fatalf("No rows changed on %d: %s\n", levelID, dberr.Error())
 	}
-	fmt.Printf("Added comment for level %d , rows affected %d\n", levelid, rowsAff)
+	fmt.Printf("Added comment for level %d , rows affected %d\n", levelID, rowsAff)
 }
 
 func getStats(channel string) string {
 
-	chanId := channels[channel]
+	chanID := channels[channel]
 
 	var allCount int
 	var playCount int
 	var skipCount int
-	allLevels := db.QueryRow("SELECT count(Played) FROM Levels WHERE StreamID=?;", chanId).Scan(&allCount)
+	allLevels := db.QueryRow("SELECT count(Played) FROM Levels WHERE StreamID=?;", chanID).Scan(&allCount)
 	if allLevels != nil {
 		log.Fatalf("Cannot count levels: %s", allLevels.Error())
 	}
-	playedLevels := db.QueryRow("SELECT count(Played) FROM Levels WHERE StreamID=? AND Played=1 AND Skipped=0;", chanId).Scan(&playCount)
+	playedLevels := db.QueryRow("SELECT count(Played) FROM Levels WHERE StreamID=? AND Played=1 AND Skipped=0;", chanID).Scan(&playCount)
 	if playedLevels != nil {
 		log.Fatalf("Cannot count played levels: %s", playedLevels.Error())
 	}
-	skipLevels := db.QueryRow("SELECT count(Played) FROM Levels WHERE StreamID=? AND Skipped=1;", chanId).Scan(&skipCount)
+	skipLevels := db.QueryRow("SELECT count(Played) FROM Levels WHERE StreamID=? AND Skipped=1;", chanID).Scan(&skipCount)
 	if skipLevels != nil {
 		log.Fatalf("Cannot count skipped levels: %s", skipLevels.Error())
 	}
@@ -375,7 +374,7 @@ func isWatching(channel string, name string) (bool, error) {
 }
 
 func writeSubs(channel string, name string, months string) {
-	chanId := channels[channel]
+	chanID := channels[channel]
 	emote := map[int]string{0: "4Head", 1: "bleedPurple", 2: "BloodTrail", 3: "CoolCat", 4: "CorgiDerp", 5: "duDudu", 6: "EleGiggle", 7: "KAPOW", 8: "Kreygasm", 9: "OSsloth", 10: "PogChamp"}
 	var monthsTotal int
 	var newTotal int
@@ -384,7 +383,7 @@ func writeSubs(channel string, name string, months string) {
 	if err != nil {
 		log.Fatalf("Error converting months to monthsInt: %s", err.Error())
 	}
-	checkSub := db.QueryRow("SELECT SubID,MonthsTotal FROM Subscribers WHERE Nick=? AND StreamID=?;", name, chanId).Scan(&subID, &monthsTotal)
+	checkSub := db.QueryRow("SELECT SubID,MonthsTotal FROM Subscribers WHERE Nick=? AND StreamID=?;", name, chanID).Scan(&subID, &monthsTotal)
 	switch {
 	case checkSub == sql.ErrNoRows:
 		color.Green("No such subscriber, Adding...\n")
@@ -394,7 +393,7 @@ func writeSubs(channel string, name string, months string) {
 		}
 		defer insertSub.Close()
 		timeNow := time.Now().Format(time.RFC3339)
-		execSub, dberr := insertSub.Exec(chanId, name, months, months, timeNow)
+		execSub, dberr := insertSub.Exec(chanID, name, months, months, timeNow)
 		if dberr != nil {
 			log.Fatalf("Cannot exec insertSub on %s: %s\n", channel, dberr.Error())
 		}
@@ -405,7 +404,7 @@ func writeSubs(channel string, name string, months string) {
 		color.Green("Added Sub %s for %s months on %s, %d\n", name, months, channel, rowsAff)
 		if channel == "#retku" {
 			var msg string
-			k := getSubs(chanId)
+			k := getSubs(chanID)
 			if monthsInt == 1 {
 				msg = fmt.Sprintf("Tervetuloa Retkueeseen %s %s Päivän %d. subi!", name, GetRand(emote), k)
 			} else {
@@ -437,7 +436,7 @@ func writeSubs(channel string, name string, months string) {
 		color.Green("Updated sub %s for %s months and %d total months on %s, %d\n", name, months, newTotal, channel, rowsAff)
 		if channel == "#retku" {
 			var msg string
-			k := getSubs(chanId)
+			k := getSubs(chanID)
 			if monthsInt == 1 {
 				msg = fmt.Sprintf("Tervetuloa takaisin Retkueeseen %s %s , laskujeni mukaan yhteensä %d kuukautta Retkueessa! Päivän %d. subi!", name, GetRand(emote), newTotal, k)
 			} else {
@@ -449,15 +448,16 @@ func writeSubs(channel string, name string, months string) {
 	}
 }
 
-func getSubs(chanId int) int {
+func getSubs(chanID int) int {
 	var i int
-	subToday := db.QueryRow("SELECT count(*) FROM Subscribers WHERE StreamID=? AND Lastsub>=CURDATE();", chanId).Scan(&i)
+	subToday := db.QueryRow("SELECT count(*) FROM Subscribers WHERE StreamID=? AND Lastsub>=CURDATE();", chanID).Scan(&i)
 	if subToday != nil {
 		log.Fatalf("Cannot count subs: %s", subToday.Error())
 	}
 	return i
 }
 
+//GetRand gets random string from map[int]string
 func GetRand(a map[int]string) string {
 	// produce a pseudo-random number between 0 and len(a)-1
 	i := int(float32(len(a)) * rand.Float32())

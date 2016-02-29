@@ -12,8 +12,9 @@ import (
 	"time"
 )
 
-var lastchat int64 = 0
+var lastchat int64
 
+//CmdInterpreter Receives PRIVMSGs from all the channels and interprets all the commands
 func CmdInterpreter(channel string, username string, usermessage string) {
 	//regexp we are using to find codes
 	reg := "([[:xdigit:]]{4})-0000-([[:xdigit:]]{4})-([[:xdigit:]]{4})"
@@ -97,9 +98,9 @@ func askOracle(username string, message string) string {
 	return "Kappa"
 }
 
-func toUtf8(iso8859_1_buf []byte) string {
-	buf := make([]rune, len(iso8859_1_buf))
-	for i, b := range iso8859_1_buf {
+func toUtf8(isobuf []byte) string {
+	buf := make([]rune, len(isobuf))
+	for i, b := range isobuf {
 		buf[i] = rune(b)
 	}
 	return string(buf)

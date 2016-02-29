@@ -24,8 +24,8 @@ var (
 	cyan        = color.New(color.FgCyan).SprintFunc()
 	white       = color.New(color.FgWhite).SprintFunc()
 	info        = color.New(color.FgWhite, color.BgGreen).SprintFunc()
-	bg_magenta  = color.New(color.FgWhite, color.BgMagenta).SprintFunc()
-	bg_yellow   = color.New(color.FgWhite, color.BgYellow).SprintFunc()
+	bgMagenta  = color.New(color.FgWhite, color.BgMagenta).SprintFunc()
+	bgYellow   = color.New(color.FgWhite, color.BgYellow).SprintFunc()
 	server      string
 	port        string
 	nick        string
@@ -33,11 +33,11 @@ var (
 	database    string
 	oauth       string
 	debug       bool
-	lastmsg     int64 = 0
+	lastmsg     int64
 	maxMsgTime  int64 = 5
-	g_levelId   map[int]int
-	g_userName  map[int]string
-	g_level     map[int]string
+	gLevelID   map[int]int
+	gUserName  map[int]string
+	gLevel     map[int]string
 	channels    map[string]int
 	conn        net.Conn
 )
@@ -53,6 +53,7 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+//Connect connects to twitch irc
 func Connect() {
 	var err error
 	color.Yellow("Connecting...\n")
@@ -65,12 +66,13 @@ func Connect() {
 	color.Green("Connected to IRC server %s\n", server)
 }
 
+//Message sends PRIVMSGs to IRC server and has a 3s cooldown between messages
 func Message(channel string, message string) {
 	if message == "" {
 		return
 	}
 	if lastmsg+maxMsgTime <= time.Now().Unix() {
-		fmt.Printf("[%s] %s <%s> %s\n", time.Now().Format("15:04"), blue(channel), bg_magenta(nick), white(message))
+		fmt.Printf("[%s] %s <%s> %s\n", time.Now().Format("15:04"), blue(channel), bgMagenta(nick), white(message))
 		fmt.Fprintf(conn, "PRIVMSG "+channel+" :"+message+"\r\n")
 		lastmsg = time.Now().Unix()
 	} else {
@@ -81,6 +83,7 @@ func Message(channel string, message string) {
 	}
 }
 
+//ConsoleInput handles Stdin, nothing fancy yet
 func ConsoleInput() {
 	reader := bufio.NewReader(os.Stdin)
 	for {
@@ -106,10 +109,10 @@ func fmtName(c string, name string, sub string, turbo string, utype string) stri
 		p = "A"
 	}
 	if sub == "1" {
-		p = p + bg_yellow("☻")
+		p = p + bgYellow("☻")
 	}
 	if turbo == "1" {
-		p = p + bg_magenta("T")
+		p = p + bgMagenta("T")
 	}
 	switch c {
 	case "#0000FF", "#5F9EA0":
@@ -134,9 +137,9 @@ func main() {
 	go ConsoleInput()
 	Connect()
 	channels = make(map[string]int)
-	g_levelId = make(map[int]int)
-	g_userName = make(map[int]string)
-	g_level = make(map[int]string)
+	gLevelID = make(map[int]int)
+	gUserName = make(map[int]string)
+	gLevel = make(map[int]string)
 	splitchannel := strings.Split(channellist, ",")
 	for i := range splitchannel {
 		channels[splitchannel[i]] = i + 1

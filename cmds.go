@@ -43,7 +43,7 @@ func CmdInterpreter(channel string, username string, usermessage string) {
 			//fmt.Printf("%q %q\n", name, months)
 			writeSubs(channel, name, months)
 		}
-	} else if strings.Contains(usermessage, nick) || strings.Contains(usermessage, strings.ToLower(nick)) {
+	} else if channel != "#retku" && strings.Contains(usermessage, nick) || channel != "#retku" && strings.Contains(usermessage, strings.ToLower(nick)) {
 		msg := strings.Replace(usermessage, nick, "", 1)
 		if msg != "" && lastchat+10 <= time.Now().Unix() {
 			//if msg != "" {
@@ -79,23 +79,25 @@ func isStreamer(username string, channel string) bool {
 	return false
 }
 
-func askOracle(username string, message string) string {
+func askOracle(username string, message string) (result string) {
 	pohja := "http://www.lintukoto.net/viihde/oraakkeli/index.php?kysymys="
 	url := pohja + url.QueryEscape(message) + "&html"
 	response, err := http.Get(url)
 	if err != nil {
-		log.Fatalf("Cannot get URL response: %s\n", err.Error())
+		log.Printf("Cannot get URL response: %s\n", err.Error())
+		result = fmt.Sprintf("%s: En osaa juuri nyt vastata, voit jättää viestin äänimerkin jälkeen", username)
 	} else {
 		defer response.Body.Close()
 		contents, err := ioutil.ReadAll(response.Body)
 		if err != nil {
-			log.Fatalf("Cannot read URL response: %s\n", err.Error())
+			log.Printf("Cannot read URL response: %s\n", err.Error())
+			result = fmt.Sprintf("%s: En osaa juuri nyt vastata, voit jättää viestin äänimerkin jälkeen", username)
 		}
+		//answer := strings.Replace(string(contents), "\n", "", 1)
 		answer := strings.Replace(toUtf8(contents), "\n", "", 1)
-		result := fmt.Sprintf("%s: %s", username, answer)
-		return result
+		result = fmt.Sprintf("%s: %s", username, answer)
 	}
-	return "Kappa"
+	return
 }
 
 func toUtf8(isobuf []byte) string {

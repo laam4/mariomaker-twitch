@@ -200,7 +200,7 @@ func getLevel(streamer bool, channel string, comment string) (result string) {
 		chanName := strings.Replace(channel, "#", "", 1)
 		msg := strings.Replace(message, "%", "%%", -1)
 		if tags != "" {
-			tags = "|"+tags
+			tags = "|" + tags
 		}
 		result = fmt.Sprintf("%s: %s | %s [%s|%s%s] by %s [%s] | <%s> %s", chanName, gLevel[chanID], title, getDifficulty(diff), getStyle(style), tags, creator, flag, gUserName[chanID], msg)
 	} else {
@@ -246,8 +246,7 @@ func getStyle(style int) (t string) {
 	return
 }
 
-func doReroll(channel string) string {
-	var result string
+func doReroll(channel string) (result string) {
 	chanID := channels[channel]
 	if gLevel[chanID] == "" {
 		result = "Cannot reroll without level Kappa"
@@ -269,11 +268,10 @@ func doReroll(channel string) string {
 		}
 		fmt.Printf("Updated played=false for level %d , rows affected %d\n", oldLevelID, rowsAff)
 	}
-	return result
+	return
 }
 
-func doSkip(channel string, comment string) string {
-	var result string
+func doSkip(channel string, comment string) (result string) {
 	chanID := channels[channel]
 	if gLevel[chanID] == "" {
 		result = "Cannot skip without level Kappa"
@@ -295,7 +293,7 @@ func doSkip(channel string, comment string) string {
 		}
 		fmt.Printf("Updated skipped=true for level %d , rows affected %d\n", oldLevelID, rowsAff)
 	}
-	return result
+	return
 }
 
 func doComment(comment string, levelID int) {
@@ -375,7 +373,7 @@ func isWatching(channel string, name string) (bool, error) {
 
 func writeSubs(channel string, name string, months string) {
 	chanID := channels[channel]
-	emote := map[int]string{0: "4Head", 1: "bleedPurple", 2: "BloodTrail", 3: "CoolCat", 4: "CorgiDerp", 5: "duDudu", 6: "EleGiggle", 7: "KAPOW", 8: "Kreygasm", 9: "OSsloth", 10: "PogChamp"}
+	emote := map[int]string{0: "rtqPilu rtqKeppi", 1: "rtqPeli", 2: "rtqTroll", 3: "rtqMega", 4: "rtqBoser", 5: "rtqKemu", 6: "rtqKinder", 7: "rtqJano"}
 	var monthsTotal int
 	var newTotal int
 	var subID int

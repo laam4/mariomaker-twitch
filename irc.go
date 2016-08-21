@@ -24,8 +24,8 @@ var (
 	cyan        = color.New(color.FgCyan).SprintFunc()
 	white       = color.New(color.FgWhite).SprintFunc()
 	info        = color.New(color.FgWhite, color.BgGreen).SprintFunc()
-	bgMagenta  = color.New(color.FgWhite, color.BgMagenta).SprintFunc()
-	bgYellow   = color.New(color.FgWhite, color.BgYellow).SprintFunc()
+	bgMagenta   = color.New(color.FgWhite, color.BgMagenta).SprintFunc()
+	bgYellow    = color.New(color.FgWhite, color.BgYellow).SprintFunc()
 	server      string
 	port        string
 	nick        string
@@ -35,9 +35,9 @@ var (
 	debug       bool
 	lastmsg     int64
 	maxMsgTime  int64 = 5
-	gLevelID   map[int]int
-	gUserName  map[int]string
-	gLevel     map[int]string
+	gLevelID    map[int]int
+	gUserName   map[int]string
+	gLevel      map[int]string
 	channels    map[string]int
 	conn        net.Conn
 )
@@ -170,6 +170,7 @@ func main() {
 		}
 		var (
 			username string
+			channel  string
 			irc      map[string]string
 			tags     map[string]string
 			isTags   bool
@@ -195,9 +196,25 @@ func main() {
 				username = strings.Replace(split[0], ":", "", 1)
 			}
 			msg := strings.Replace(irc["trailing"], ":", "", 1)
-			fmt.Printf("[%s] %s <%s> %s\n", time.Now().Format("15:04"), blue(irc["params"]), fmtName(tags["@color"], username, tags["subscriber"], tags["turbo"], tags["user-type"]), white(msg))
+			fmt.Printf("[%s] %s <%s> %s\n", time.Now().Format("15:04"), blue(irc["params"]), fmtName(tags["color"], username, tags["subscriber"], tags["turbo"], tags["user-type"]), white(msg))
 			go CmdInterpreter(irc["params"], username, msg)
 			//fmt.Printf("%q\n", irc)
+		case "USERNOTICE":
+			if tags["display-name"] == "" {
+				username = tags["login"]
+			} else {
+				username = tags["display-name"]
+			}
+			switch tags["room-id"] {
+			case "22121645":
+				channel = "#retku"
+			case "35032693":
+				channel = "#herramustikka"
+			default:
+				channel = "#derp"
+			}
+			months := tags["msg-param-months"]
+			writeSubs(channel, username, months)
 		default:
 			if debug {
 				fmt.Printf("%q\n", irc)

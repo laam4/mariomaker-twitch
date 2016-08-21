@@ -18,7 +18,6 @@ IRC code Based on https://github.com/Vaultpls/Twitch-IRC-Bot
 
 ## Install
 - Go to your go project folder
-- Get dependencies `go get github.com/go-sql-driver/mysql` `go get github.com/fatih/color` `go get github.com/vharitonsky/iniflags` `go get github.com/PuerkitoBio/goquery` `go get gopkg.in/matryer/try.v1`
 - Get twitch bot `go get github.com/laam4/mariomaker-twitch`
 - Create database and user to MySQL
 - Edit `default.ini`
